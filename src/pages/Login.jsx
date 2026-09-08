@@ -7,6 +7,7 @@ import {
   EyeIcon,
   ArrowIcon,
 } from "../components/auth/Icons";
+import { NavLink } from "react-router-dom";
 
 export default function Login({ onSubmit, onNavigateRegister }) {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -93,15 +94,14 @@ export default function Login({ onSubmit, onNavigateRegister }) {
           <label>
             
           </label>
-          <a
-            href="#forgot-password"
+          <NavLink
+            to="/forgot-password"
             className="hover:underline"
             style={{ color: tokens.muted }}
           >
             Forgot password?
-          </a>
+          </NavLink>
         </div>
-
         {error && (
           <p className="text-sm mb-4" style={{ color: "#E88A8A" }} role="alert">
             {error}
