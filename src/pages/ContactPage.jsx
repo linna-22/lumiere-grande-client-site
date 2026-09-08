@@ -6,7 +6,7 @@ const contactDetails = [
   {
     icon: MapPin,
     title: "Address",
-    lines: ["128 Grande Avenue, Marina District", "Metropolis, 10001"],
+    lines: ["Phnom Penh", "Cambodia"],
   },
   {
     icon: Phone,
@@ -16,7 +16,7 @@ const contactDetails = [
   {
     icon: Mail,
     title: "Email",
-    lines: ["reservations@lumieregrande.com", "events@lumieregrande.com"],
+    lines: ["lumieregrandehotel@gmail.com "],
   },
   {
     icon: Clock,
@@ -170,7 +170,7 @@ export default function ContactPage() {
           <div className="overflow-hidden rounded-2xl border border-slate-100 shadow-sm lg:col-span-2">
             <iframe
               title="Lumiere Grande Hotel Location"
-              src="https://maps.google.com/maps?q=New%20York%20City&t=&z=13&ie=UTF8&iwloc=&output=embed"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3776.5244935972946!2d104.88799717489461!3d11.56221198863841!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x310951adb4d4041d%3A0x8a90e729f62ad800!2sETEC%20Center!5e1!3m2!1sen!2skh!4v1788750066108!5m2!1sen!2skh"
               className="h-80 w-full lg:h-full"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"

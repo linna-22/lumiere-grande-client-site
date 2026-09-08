@@ -83,7 +83,6 @@ export default function Footer() {
             <li>Valet &amp; Parking</li>
             <li>Spa &amp; Wellness</li>
             <li>Fine Dining</li>
-            <li>Event &amp; Meeting Spaces</li>
           </ul>
         </div>
 
@@ -92,7 +91,7 @@ export default function Footer() {
           <ul className="space-y-3 text-sm text-slate-400">
             <li className="flex gap-3">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <span>128 Grande Avenue, Marina District, Metropolis, 10001</span>
+              <span>Phnom Penh, Cambodia</span>
             </li>
             <li className="flex gap-3">
               <Phone className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
@@ -100,7 +99,7 @@ export default function Footer() {
             </li>
             <li className="flex gap-3">
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <span>reservations@lumieregrande.com</span>
+              <span>lumieregrandehotel@gmail.com </span>
             </li>
           </ul>
         </div>

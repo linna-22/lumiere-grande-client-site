@@ -82,7 +82,7 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative flex min-h-screen items-center overflow-hidden bg-slate-950">
+      <section className="relative flex min-h-screen items-center overflow-hidden bg-slate-400">
         <img
           src="/images/hero-hotel.jpg"
           alt="Lumiere Grande Hotel exterior at dusk"
