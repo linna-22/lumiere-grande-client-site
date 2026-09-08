@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { apiFetch, fetchCsrfCookie, setToken, clearToken } from '../api/client'
 
-export function useAuth() {
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -35,13 +37,10 @@ export function useAuth() {
 
   const register = useCallback(async ({ name, email, password, password_confirmation }) => {
     await fetchCsrfCookie()
-    const data = await apiFetch('/register', {
+    return apiFetch('/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password, password_confirmation }),
     })
-    // No access_token in response currently — see note above.
-    // Once backend adds it, this becomes: if (data.access_token) { setToken(...); setUser(data.user) }
-    return data
   }, [])
 
   const logout = useCallback(async () => {
@@ -50,5 +49,13 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { user, loading, login, register, logout, checkSession, isAuthenticated: Boolean(user) }
+  const value = { user, loading, login, register, logout, checkSession, isAuthenticated: Boolean(user) }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
+  return ctx
 }

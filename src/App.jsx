@@ -3,6 +3,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import BookingModal from "./components/BookingModal";
 import { BookingProvider } from "./context/BookingContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import HomePage from "./pages/HomePage";
 import SuitesPage from "./pages/SuitesPage";
 import RoomDetailPage from "./pages/RoomDetailPage";
@@ -10,7 +11,6 @@ import ContactPage from "./pages/ContactPage";
 import ScrollToTop from "./components/ScrollToTop";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import { useAuth } from "./hooks/useAuth";
 
 function Chrome({ children }) {
   const { pathname } = useLocation();
@@ -69,22 +69,24 @@ function RegisterRoute() {
 export default function App() {
   return (
     <HashRouter>
-      <BookingProvider>
-        <ScrollToTop />
-        <div className="flex min-h-screen flex-col bg-white font-sans text-slate-900">
-          <Chrome>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/suites" element={<SuitesPage />} />
-              <Route path="/suites/:slug" element={<RoomDetailPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/login" element={<LoginRoute />} />
-              <Route path="/register" element={<RegisterRoute />} />
-            </Routes>
-          </Chrome>
-        </div>
-        <BookingModal />
-      </BookingProvider>
+      <AuthProvider>
+        <BookingProvider>
+          <ScrollToTop />
+          <div className="flex min-h-screen flex-col bg-white font-sans text-slate-900">
+            <Chrome>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/suites" element={<SuitesPage />} />
+                <Route path="/suites/:slug" element={<RoomDetailPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/login" element={<LoginRoute />} />
+                <Route path="/register" element={<RegisterRoute />} />
+              </Routes>
+            </Chrome>
+          </div>
+          <BookingModal />
+        </BookingProvider>
+      </AuthProvider>
     </HashRouter>
   );
 }

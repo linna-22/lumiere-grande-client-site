@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, Gem, User, LogOut, ChevronDown } from "lucide-react";
 import { useBooking } from "../context/BookingContext";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
 
 const navLinks = [
