@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Gem, User, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, Gem, User, LogOut, ChevronDown, KeyRound } from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
@@ -157,6 +157,16 @@ export default function Navbar() {
                       <User size={15} />
                       View Profile
                     </button>
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        navigate("/change-password");
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <KeyRound size={15} />
+                      Change Password
+                    </button>
                     <div className="h-px bg-slate-100 my-1" />
                     <button
                       onClick={handleLogout}
@@ -236,6 +246,12 @@ export default function Navbar() {
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-slate-700 hover:bg-slate-50"
                 >
                   View Profile
+                </NavLink>
+                <NavLink
+                  to="/change-password"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-slate-700 hover:bg-slate-50"
+                >
+                  Change Password
                 </NavLink>
                 <button
                   onClick={handleLogout}
