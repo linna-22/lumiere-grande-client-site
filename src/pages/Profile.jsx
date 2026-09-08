@@ -1,16 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, MapPin, IdCard, Globe, Loader2, Save } from "lucide-react";
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  IdCard,
+  Globe,
+  Loader2,
+  Save,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getProfile, updateProfile } from "../api/user";
+import { showSuccessToast } from "../utils/toast";
 
 const emptyForm = {
   first_name: "",
   last_name: "",
   phone: "",
   address: "",
-  id_type: "",
-  id_number: "",
+  identification_type: "",
+  identification_number: "",
   nationality: "",
 };
 
@@ -22,7 +32,6 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -36,20 +45,18 @@ export default function Profile() {
     (async () => {
       try {
         const res = await getProfile();
-        const guest = res.data; // response is { data: {...} }
+        const guest = res.data;
         setForm({
           first_name: guest.first_name ?? "",
           last_name: guest.last_name ?? "",
           phone: guest.phone ?? "",
           address: guest.address ?? "",
-          id_type: guest.id_type ?? "",
-          id_number: guest.id_number ?? "",
+          identification_type: guest.identification_type ?? "",
+          identification_number: guest.identification_number ?? "",
           nationality: guest.nationality ?? "",
         });
       } catch (err) {
         if (err.status === 404) {
-          // No Guests row exists yet for this account — a backend gap,
-          // not something the user can fix themselves.
           setNotFound(true);
         } else {
           setError(err.message || "Failed to load profile.");
@@ -67,21 +74,11 @@ export default function Profile() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    setSuccess("");
     setSaving(true);
     try {
-      const res = await updateProfile(form);
-      const guest = res.data;
-      setForm({
-        first_name: guest.first_name ?? "",
-        last_name: guest.last_name ?? "",
-        phone: guest.phone ?? "",
-        address: guest.address ?? "",
-        id_type: guest.id_type ?? "",
-        id_number: guest.id_number ?? "",
-        nationality: guest.nationality ?? "",
-      });
-      setSuccess("Profile updated successfully.");
+      await updateProfile(form);
+      showSuccessToast("Profile updated successfully!");
+      navigate("/");
     } catch (err) {
       if (err.status === 422 && err.data?.errors) {
         const firstError = Object.values(err.data.errors)[0]?.[0];
@@ -167,19 +164,73 @@ export default function Profile() {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-              Phone
-            </label>
-            <div className="relative">
-              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={update("phone")}
-                className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
-                placeholder="+855 12 345 678"
-              />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Phone
+              </label>
+              <div className="relative">
+                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={update("phone")}
+                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
+                  placeholder="+855 12 345 678"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                Nationality
+              </label>
+              <div className="relative">
+                <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={form.nationality}
+                  onChange={update("nationality")}
+                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
+                  placeholder="e.g. Cambodian"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                ID Type
+              </label>
+              <div className="relative">
+                <IdCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <select
+                  value={form.identification_type}
+                  onChange={update("identification_type")}
+                  className="w-full appearance-none rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="">Select ID type</option>
+                  <option value="Passport">Passport</option>
+                  <option value="Identity Card">Identity Card</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                ID Number
+              </label>
+              <div className="relative">
+                <IdCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={form.identification_number}
+                  onChange={update("identification_number")}
+                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
+                  placeholder="ID / passport number"
+                />
+              </div>
             </div>
           </div>
 
@@ -199,62 +250,11 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                Nationality
-              </label>
-              <div className="relative">
-                <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={form.nationality}
-                  onChange={update("nationality")}
-                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
-                  placeholder="e.g. Cambodian"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                ID Type
-              </label>
-              <div className="relative">
-                <IdCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={form.id_type}
-                  onChange={update("id_type")}
-                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
-                  placeholder="Passport, National ID..."
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-              ID Number
-            </label>
-            <div className="relative">
-              <IdCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={form.id_number}
-                onChange={update("id_number")}
-                className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3.5 text-sm focus:border-amber-500 focus:outline-none"
-                placeholder="ID / passport number"
-              />
-            </div>
-          </div>
-
           {error && (
             <p className="text-sm text-rose-500" role="alert">
               {error}
             </p>
           )}
-          {success && <p className="text-sm text-emerald-600">{success}</p>}
 
           <button
             type="submit"

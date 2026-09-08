@@ -78,7 +78,7 @@ export default function Register({ onSubmit, onNavigateLogin }) {
           autoComplete="name"
           value={form.name}
           onChange={update("name")}
-          placeholder="Alex Moreau"
+          placeholder="Enter your full name"
         />
 
         <Field

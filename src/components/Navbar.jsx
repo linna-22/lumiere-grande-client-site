@@ -5,6 +5,7 @@ import { useBooking } from "../context/BookingContext";
 import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
 
+
 const navLinks = [
   { to: "/", label: "Home" },
   { to: "/suites", label: "Suites" },
@@ -24,7 +25,7 @@ export default function Navbar() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { openBooking } = useBooking();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const profileRef = useRef(null);
@@ -120,7 +121,9 @@ export default function Navbar() {
 
           {/* Auth section — desktop */}
           <div className="hidden md:flex items-center gap-3">
-            {isAuthenticated ? (
+            {loading ? (
+              <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse" />
+            ) : isAuthenticated ? (
               <div className="relative" ref={profileRef}>
                 <button
                   onClick={() => setProfileMenuOpen((v) => !v)}
