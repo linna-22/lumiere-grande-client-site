@@ -1,6 +1,4 @@
 import { SlidersHorizontal, RotateCcw } from "lucide-react";
-import { ROOM_TYPES } from "../types";
-import { MIN_PRICE, MAX_PRICE } from "../data/rooms";
 
 export default function SuitesFilter({
   selectedType,
@@ -9,24 +7,19 @@ export default function SuitesFilter({
   onPriceChange,
   onReset,
   resultCount,
+  roomTypes,
+  minPrice,
+  maxPrice,
 }) {
   const [min, max] = priceRange;
 
-  const handleMinChange = (value) => {
-    const nextMin = Math.min(value, max);
-    onPriceChange([nextMin, max]);
-  };
-
-  const handleMaxChange = (value) => {
-    const nextMax = Math.max(value, min);
-    onPriceChange([min, nextMax]);
-  };
+  const handleMinChange = (value) => onPriceChange([Math.min(value, max), max]);
+  const handleMaxChange = (value) => onPriceChange([min, Math.max(value, min)]);
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Room type filter */}
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <SlidersHorizontal className="h-3.5 w-3.5 text-amber-600" />
@@ -38,7 +31,7 @@ export default function SuitesFilter({
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-500/20"
             >
               <option value="All">All Room Types</option>
-              {ROOM_TYPES.map((type) => (
+              {roomTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -46,7 +39,6 @@ export default function SuitesFilter({
             </select>
           </div>
 
-          {/* Price range filter */}
           <div className="sm:col-span-2">
             <label className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
               <span>Price Range / Night</span>
@@ -57,8 +49,8 @@ export default function SuitesFilter({
             <div className="relative flex items-center gap-4 pt-1">
               <input
                 type="range"
-                min={MIN_PRICE}
-                max={MAX_PRICE}
+                min={minPrice}
+                max={maxPrice}
                 step={10}
                 value={min}
                 onChange={(e) => handleMinChange(Number(e.target.value))}
@@ -66,8 +58,8 @@ export default function SuitesFilter({
               />
               <input
                 type="range"
-                min={MIN_PRICE}
-                max={MAX_PRICE}
+                min={minPrice}
+                max={maxPrice}
                 step={10}
                 value={max}
                 onChange={(e) => handleMaxChange(Number(e.target.value))}
@@ -75,8 +67,8 @@ export default function SuitesFilter({
               />
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-slate-400">
-              <span>${MIN_PRICE}</span>
-              <span>${MAX_PRICE}</span>
+              <span>${minPrice}</span>
+              <span>${maxPrice}</span>
             </div>
           </div>
         </div>
