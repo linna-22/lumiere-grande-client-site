@@ -1,10 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
-import AuthLayout, { tokens } from "../components/auth/AuthLayout";
 import { ArrowIcon } from "../components/auth/Icons";
 import { verifyResetOtp, forgotPassword } from "../api/password";
 
 const OTP_LENGTH = 6;
+const RESEND_COOLDOWN = 120; // seconds
+
+function maskEmail(email) {
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  const visible = local.slice(0, 6);
+  return `${visible}${"*".repeat(7)}@${domain}`;
+}
 
 export default function VerifyResetOtp() {
   const location = useLocation();
@@ -15,7 +22,16 @@ export default function VerifyResetOtp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const inputRefs = useRef([]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((c) => (c > 0 ? c - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   // No email in state means someone landed here directly — there's no
   // reset session to verify, so send them back to start over.
@@ -66,12 +82,14 @@ export default function VerifyResetOtp() {
   }
 
   async function handleResend() {
+    if (cooldown > 0) return;
     setResending(true);
     setError("");
     try {
       await forgotPassword(email);
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
+      setCooldown(RESEND_COOLDOWN);
     } catch (err) {
       setError(err.message || "Failed to resend code.");
     } finally {
@@ -79,61 +97,67 @@ export default function VerifyResetOtp() {
     }
   }
 
+  const mm = String(Math.floor(cooldown / 60)).padStart(1, "0");
+  const ss = String(cooldown % 60).padStart(2, "0");
+
   return (
-    <AuthLayout
-      eyebrow="RESET PASSWORD"
-      title="Enter your reset code"
-      subtitle={
-        <>
-          We sent a 6-digit code to <span style={{ color: tokens.cream }}>{email}</span>
-        </>
-      }
-    >
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6" onPaste={handlePaste}>
-          {digits.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              disabled={submitting}
-              className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-lg border focus:outline-none disabled:opacity-60"
-              style={{ borderColor: "rgba(255,255,255,0.15)", color: tokens.cream, backgroundColor: "rgba(255,255,255,0.05)" }}
-            />
-          ))}
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#191d39] px-6 py-16">
+      <div className="w-full max-w-sm">
+        <p className="text-[11px] tracking-[0.2em] font-medium mb-3 text-amber-500">
+          RESET PASSWORD
+        </p>
+        <h1 className="font-serif text-3xl mb-2 text-white">Enter your reset code</h1>
+        <p className="text-sm mb-10 text-slate-400">
+          We sent a 6-digit code to <span className="text-slate-200">{maskEmail(email)}</span>
+        </p>
 
-        {error && (
-          <p className="text-sm mb-4 text-center" style={{ color: "#E88A8A" }} role="alert">
-            {error}
-          </p>
-        )}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6" onPaste={handlePaste}>
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => (inputRefs.current[index] = el)}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                disabled={submitting}
+                className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-lg border border-white/15 bg-white/5 text-white focus:outline-none focus:border-amber-500 disabled:opacity-60"
+              />
+            ))}
+          </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full flex items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold tracking-wide transition-colors disabled:opacity-60"
-          style={{ backgroundColor: tokens.amber, color: tokens.ink }}
-        >
-          {submitting ? "Verifying…" : "Verify code"}
-          {!submitting && <ArrowIcon />}
-        </button>
+          {error && (
+            <p className="text-sm mb-4 text-center text-red-400" role="alert">
+              {error}
+            </p>
+          )}
 
-        <button
-          type="button"
-          onClick={handleResend}
-          disabled={resending}
-          className="w-full mt-4 text-sm underline underline-offset-4 disabled:opacity-60"
-          style={{ color: tokens.muted }}
-        >
-          {resending ? "Resending…" : "Resend code"}
-        </button>
-      </form>
-    </AuthLayout>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold tracking-wide text-[#191d39] bg-amber-500 transition-colors hover:bg-amber-400 disabled:opacity-60"
+          >
+            {submitting ? "Verifying…" : "Verify code"}
+            {!submitting && <ArrowIcon />}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending || cooldown > 0}
+            className="w-full mt-4 text-sm underline underline-offset-4 text-slate-400 disabled:opacity-60 disabled:no-underline"
+          >
+            {resending
+              ? "Resending…"
+              : cooldown > 0
+              ? `Resend code in ${mm}:${ss}`
+              : "Resend code"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

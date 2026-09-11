@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchRoomTypes, fetchRooms, fetchFacilities } from "../api/rooms";
+import { fetchRoomTypes, fetchAllRooms, fetchFacilities } from "../api/rooms";
+
+
 
 const FALLBACK_IMAGE =
   "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=1200";
@@ -14,9 +16,10 @@ export function useRoomDetail(id) {
     (async () => {
       setState({ room: null, isLoading: true, error: null });
       try {
+
         const [roomTypes, rooms, facilities] = await Promise.all([
           fetchRoomTypes(),
-          fetchRooms(),
+          fetchAllRooms(),
           fetchFacilities().catch(() => []),
         ]);
 
