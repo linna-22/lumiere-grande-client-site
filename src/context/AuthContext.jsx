@@ -51,6 +51,23 @@ export function AuthProvider({ children }) {
     [],
   );
 
+  // Used by the OAuth callback route: we already have an access_token
+  // from the URL query param (issued by Laravel after Google/GitHub auth),
+  // so just store it and fetch the user the same way checkSession() does.
+  const loginWithToken = useCallback(async (token) => {
+    setToken(token);
+    try {
+      const res = await apiFetch("/user/me");
+      const currentUser = res.data ?? res;
+      setUser(currentUser);
+      return currentUser;
+    } catch (err) {
+      clearToken();
+      setUser(null);
+      throw err;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await apiFetch("/logout", { method: "POST" });
     clearToken();
@@ -63,6 +80,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    loginWithToken,
     checkSession,
     isAuthenticated: Boolean(user),
   };

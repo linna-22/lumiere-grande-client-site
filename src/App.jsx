@@ -22,10 +22,22 @@ import ForgotPassword from "./pages/ForgotPassword";
 import VerifyResetOtp from "./pages/VerifyResetOtp";
 import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
+import OAuthCallback from "./pages/OAuthCallback";
+import BookingPage from "./pages/BookingPage";
+
+const SANCTUM_BASE_URL =
+  import.meta.env.VITE_SANCTUM_URL || "http://localhost:8000";
 
 function Chrome({ children }) {
   const { pathname } = useLocation();
-  const bare = ["/login", "/register", "/forgot-password", "/verify-reset-otp", "/reset-password"].includes(pathname);
+  const bare = [
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/verify-reset-otp",
+    "/reset-password",
+    "/oauth/callback",
+  ].includes(pathname);
 
   if (bare) return children;
 
@@ -61,10 +73,20 @@ function LoginRoute() {
     navigate("/");
   }
 
+  function handleGoogleSignup() {
+    window.location.href = `${SANCTUM_BASE_URL}/api/auth/google`;
+  }
+
+  function handleGithubSignup() {
+    window.location.href = `${SANCTUM_BASE_URL}/api/auth/github`;
+  }
+
   return (
     <Login
       onSubmit={handleSubmit}
       onNavigateRegister={() => navigate("/register")}
+      onGoogleSignup={handleGoogleSignup}
+      onGithubSignup={handleGithubSignup}
     />
   );
 }
@@ -83,10 +105,19 @@ function RegisterRoute() {
     navigate("/login");
   }
 
+  function handleGoogleSignup() {
+    window.location.href = `${SANCTUM_BASE_URL}/api/auth/google`;
+  }
+
+  function handleGithubSignup() {
+    window.location.href = `${SANCTUM_BASE_URL}/api/auth/github`;
+  }
   return (
     <Register
       onSubmit={handleSubmit}
       onNavigateLogin={() => navigate("/login")}
+      onGoogleSignup={handleGoogleSignup}
+      onGithubSignup={handleGithubSignup}
     />
   );
 }
@@ -111,6 +142,8 @@ export default function App() {
                 <Route path="/verify-reset-otp" element={<VerifyResetOtp />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/change-password" element={<ChangePassword />} />
+                <Route path="/oauth/callback" element={<OAuthCallback />} />
+                <Route path="/booking/:id" element={<BookingPage />} />
               </Routes>
             </Chrome>
           </div>

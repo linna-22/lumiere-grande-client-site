@@ -1,5 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9000/api'
-const SANCTUM_BASE_URL = import.meta.env.VITE_SANCTUM_URL || 'http://localhost:9000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const SANCTUM_BASE_URL = import.meta.env.VITE_SANCTUM_URL || 'http://localhost:8000'
 const TOKEN_KEY = 'auth_token'
 
 export class ApiError extends Error {

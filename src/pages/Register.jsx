@@ -66,10 +66,6 @@ export default function Register({
       setError("Passwords don't match — check both fields and try again.");
       return;
     }
-    if (!agree) {
-      setError("Accept the terms and privacy policy to continue.");
-      return;
-    }
 
     setSubmitting(true);
     try {
