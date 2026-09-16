@@ -29,7 +29,7 @@ export default function Field({
           placeholder={placeholder}
           autoComplete={autoComplete}
           className="w-full bg-transparent outline-none text-sm py-1"
-          style={{ color: tokens.cream, caretColor: tokens.amber }}
+          style={{ color: "#000000", caretColor: tokens.amber }}
         />
         {rightElement}
       </div>

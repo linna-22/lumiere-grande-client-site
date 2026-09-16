@@ -53,6 +53,7 @@ function Chrome({ children }) {
 function LoginRoute() {
   const { login, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   async function handleSubmit(form) {
     const data = await login(form);
@@ -65,19 +66,32 @@ function LoginRoute() {
 
     if (data.user?.role !== "customer") {
       await logout();
+
       throw new Error(
         "This login is for customers only. Staff should use the staff portal.",
       );
     }
 
-    navigate("/");
+    const redirectTo = location.state?.from || "/";
+
+    navigate(redirectTo, {
+      replace: true,
+    });
   }
 
   function handleGoogleSignup() {
+    const redirectTo = location.state?.from || "/";
+
+    sessionStorage.setItem("oauth_redirect", redirectTo);
+
     window.location.href = `${SANCTUM_BASE_URL}/api/auth/google`;
   }
 
   function handleGithubSignup() {
+    const redirectTo = location.state?.from || "/";
+
+    sessionStorage.setItem("oauth_redirect", redirectTo);
+
     window.location.href = `${SANCTUM_BASE_URL}/api/auth/github`;
   }
 
@@ -106,10 +120,18 @@ function RegisterRoute() {
   }
 
   function handleGoogleSignup() {
+    const redirectTo = location.state?.from || "/";
+
+    sessionStorage.setItem("oauth_redirect", redirectTo);
+
     window.location.href = `${SANCTUM_BASE_URL}/api/auth/google`;
   }
 
   function handleGithubSignup() {
+    const redirectTo = location.state?.from || "/";
+
+    sessionStorage.setItem("oauth_redirect", redirectTo);
+
     window.location.href = `${SANCTUM_BASE_URL}/api/auth/github`;
   }
   return (

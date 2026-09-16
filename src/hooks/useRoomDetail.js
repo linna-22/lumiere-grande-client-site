@@ -35,33 +35,92 @@ export function useRoomDetail(id) {
           error: null,
         });
 
-        const [roomTypes, roomsData, facilities] = await Promise.all([
-          fetchRoomTypes(),
-          fetchAllRooms(),
-          fetchFacilities().catch(() => []),
-        ]);
+        const [roomTypesResponse, roomsResponse, facilitiesResponse] =
+          await Promise.all([
+            fetchRoomTypes(),
+            fetchAllRooms(),
+            fetchFacilities().catch(() => []),
+          ]);
 
-        console.log("Room Detail - roomTypes:", roomTypes);
-        console.log("Room Detail - rooms:", roomsData);
-        console.log("Room Detail - facilities:", facilities);
+        console.log(
+          "Room Detail - roomTypes response:",
+          roomTypesResponse
+        );
 
-        const rooms = roomsData?.rooms ?? [];
+        console.log(
+          "Room Detail - rooms response:",
+          roomsResponse
+        );
 
-        // Find the room type using the URL ID
+        console.log(
+          "Room Detail - facilities response:",
+          facilitiesResponse
+        );
+
+        // ============================================
+        // Normalize API responses
+        // ============================================
+
+        const roomTypes = Array.isArray(roomTypesResponse)
+          ? roomTypesResponse
+          : roomTypesResponse?.data ?? [];
+
+        const rooms = Array.isArray(roomsResponse)
+          ? roomsResponse
+          : roomsResponse?.data ?? [];
+
+        const facilities = Array.isArray(facilitiesResponse)
+          ? facilitiesResponse
+          : facilitiesResponse?.data ?? [];
+
+        console.log(
+          "Room Detail - normalized roomTypes:",
+          roomTypes
+        );
+
+        console.log(
+          "Room Detail - normalized rooms:",
+          rooms
+        );
+
+        console.log(
+          "Room Detail - normalized facilities:",
+          facilities
+        );
+
+        // ============================================
+        // Find room type by URL ID
+        // ============================================
+
         const type = roomTypes.find(
           (t) => String(t.id) === String(id)
         );
 
         if (!type) {
-          throw new Error(`Room type ${id} was not found.`);
+          throw new Error(
+            `Room type ${id} was not found.`
+          );
         }
 
-        // Rooms belonging to this room type
+        // ============================================
+        // Find physical rooms belonging to this type
+        // ============================================
+
         const matchingRooms = rooms.filter(
-          (r) => String(r.room_type_id) === String(type.id)
+          (r) =>
+            String(r.room_type_id) ===
+            String(type.id)
         );
 
+        console.log(
+          "Room Detail - matching rooms:",
+          matchingRooms
+        );
+
+        // ============================================
         // Build gallery from physical rooms
+        // ============================================
+
         const gallery = [
           ...new Set(
             matchingRooms
@@ -74,17 +133,22 @@ export function useRoomDetail(id) {
           gallery.push(FALLBACK_IMAGE);
         }
 
-        /*
-         * Room type facilities may already be full objects
-         * or may be IDs depending on the API response.
-         */
+        // ============================================
+        // Normalize facilities
+        // ============================================
+
         const facilityById = new Map(
-          (facilities ?? []).map((f) => [String(f.id), f])
+          facilities.map((f) => [
+            String(f.id),
+            f,
+          ])
         );
 
-        const normalizedFacilities = (type.facilities ?? [])
+        const normalizedFacilities = (
+          type.facilities ?? []
+        )
           .map((facility) => {
-            // Already a facility object
+            // Facility is already an object
             if (
               typeof facility === "object" &&
               facility !== null
@@ -93,32 +157,62 @@ export function useRoomDetail(id) {
             }
 
             // Facility is an ID
-            return facilityById.get(String(facility));
+            return facilityById.get(
+              String(facility)
+            );
           })
           .filter(Boolean);
 
+        // ============================================
+        // Build frontend room object
+        // ============================================
+
         const room = {
+          // IMPORTANT:
+          // This is the ROOM TYPE ID because the
+          // detail page is currently based on room type.
           id: type.id,
-          name: type.name ?? "Unnamed Room",
-          type: type.name ?? "Room",
-          description: type.description ?? "",
-          image: gallery[0],
+
+          name:
+            type.name ??
+            "Unnamed Room",
+
+          type:
+            type.name ??
+            "Room",
+
+          description:
+            type.description ?? "",
+
+          image:
+            gallery[0],
+
           gallery,
 
-          pricePerNight: Number(type.base_price ?? 0),
+          pricePerNight:
+            Number(type.base_price ?? 0),
 
-          capacity: Number(type.capacity ?? 0),
+          capacity:
+            Number(type.capacity ?? 0),
 
-          maxOccupancy: Number(
-            type.max_occupancy ?? type.capacity ?? 0
-          ),
+          maxOccupancy:
+            Number(
+              type.max_occupancy ??
+              type.capacity ??
+              0
+            ),
 
-          facilities: normalizedFacilities,
+          facilities:
+            normalizedFacilities,
 
-          rooms: matchingRooms,
+          rooms:
+            matchingRooms,
         };
 
-        console.log("Room Detail - final room:", room);
+        console.log(
+          "Room Detail - final room:",
+          room
+        );
 
         if (!ignore) {
           setState({
@@ -128,7 +222,10 @@ export function useRoomDetail(id) {
           });
         }
       } catch (error) {
-        console.error("Failed to load room detail:", error);
+        console.error(
+          "Failed to load room detail:",
+          error
+        );
 
         if (!ignore) {
           setState({

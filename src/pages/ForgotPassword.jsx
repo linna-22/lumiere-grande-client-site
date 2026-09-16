@@ -14,6 +14,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+
     try {
       await forgotPassword(email);
       navigate("/verify-reset-otp", { state: { email } });
@@ -30,16 +31,25 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#191d39] px-6 py-16">
+    <div className="min-h-screen flex items-center justify-center bg-[#f7f3ec] px-6 py-16">
       <div className="w-full max-w-sm">
-        <p className="text-[11px] tracking-[0.2em] font-medium mb-3 text-amber-600">
-          RESET PASSWORD
-        </p>
-        <h1 className="font-serif text-3xl mb-2 text-white">Forgot your password?</h1>
-        <p className="text-sm mb-10 text-slate-500">
-          Enter your email and we'll send you a 6-digit code to reset it.
-        </p>
 
+        {/* Header */}
+        <div className="mb-8">
+          <p className="text-[11px] tracking-[0.25em] font-semibold mb-3 text-[#b08a4a]">
+            RESET PASSWORD
+          </p>
+
+          <h1 className="font-serif text-3xl mb-2 text-[#1f2942]">
+            Forgot your password?
+          </h1>
+
+          <p className="text-sm leading-6 text-[#7b8190]">
+            Enter your email and we'll send you a 6-digit code to reset it.
+          </p>
+        </div>
+
+        {/* Form */}
         <form onSubmit={handleSubmit} noValidate>
           <Field
             label="EMAIL ADDRESS"
@@ -52,32 +62,66 @@ export default function ForgotPassword() {
             placeholder="you@example.com"
           />
 
+          {/* Error */}
           {error && (
-            <p className="text-sm mb-4 text-red-500" role="alert">
+            <div
+              className="
+                text-sm mb-4
+                rounded-xl
+                border border-red-200
+                bg-red-50
+                px-4 py-3
+                text-red-600
+              "
+              role="alert"
+            >
               {error}
-            </p>
+            </div>
           )}
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full mt-2 flex items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold tracking-wide text-white bg-amber-600 transition-colors hover:bg-amber-700 disabled:opacity-60"
+            className="
+              w-full mt-2
+              flex items-center justify-center gap-2
+              rounded-full py-3.5
+              text-sm font-semibold tracking-wide
+              text-white
+              bg-[#b08a4a]
+              shadow-md
+              transition-all
+              hover:bg-[#967338]
+              hover:shadow-lg
+              disabled:opacity-60
+              disabled:cursor-not-allowed
+            "
           >
             {submitting ? "Sending code…" : "Send reset code"}
             {!submitting && <ArrowIcon />}
           </button>
         </form>
 
-        <div className="pt-6 text-sm  text-slate-500">
+        {/* Back to Login */}
+        <div className="pt-7 text-sm text-[#7b8190]">
           Remembered it?{" "}
           <button
             type="button"
             onClick={() => navigate("/login")}
-            className="font-medium underline underline-offset-4 text-amber-600"
+            className="
+              font-medium
+              underline
+              underline-offset-4
+              text-[#a77f3f]
+              hover:text-[#80602f]
+              transition-colors
+            "
           >
             Back to sign in
-          </button> 
+          </button>
         </div>
+
       </div>
     </div>
   );

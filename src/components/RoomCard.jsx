@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { Users, ArrowRight } from "lucide-react";
-import { useBooking } from "../context/BookingContext";
+// import { useBooking } from "../context/BookingContext";
 
 export default function RoomCard({ room }) {
-  const { openBooking } = useBooking();
+  // const { openBooking } = useBooking();
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
@@ -52,12 +52,12 @@ export default function RoomCard({ room }) {
           </Link>
         </div>
 
-        <button
+        {/* <button
           onClick={() => openBooking(room.id)}
           className="mt-4 w-full rounded-full border border-slate-900 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-900 transition hover:bg-slate-900 hover:text-white"
         >
           Book Now
-        </button>
+        </button> */}
       </div>
     </div>
   );
