@@ -17,9 +17,9 @@ import { useBooking } from "../context/BookingContext";
 
 const stats = [
   { value: "18", label: "Years of Excellence" },
-  { value: "120+", label: "Rooms & Suites" },
+  { value: "50+", label: "Rooms & Suites" },
   { value: "4.9", label: "Average Guest Rating" },
-  { value: "35K+", label: "Happy Guests" },
+  { value: "3K+", label: "Happy Guests" },
 ];
 
 const features = [

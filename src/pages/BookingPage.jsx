@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Banknote,
   BedDouble,
   CalendarDays,
   Check,
@@ -20,6 +21,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useBooking } from "../context/BookingContext";
 import { fetchAllRooms, fetchRoomTypes } from "../api/rooms";
 import { createReservation } from "../api/reservations";
+import { generateKhqr } from "../api/payments";
+import KhqrPaymentModal from "../components/KhqrPaymentModal";
 
 /* =========================================================
    DATE HELPERS
@@ -62,6 +65,12 @@ export default function BookingPage() {
   const [roomTypes, setRoomTypes] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
+
+  // Reservation created on the server (reused if the guest closes the QR and retries)
+  const [createdReservation, setCreatedReservation] = useState(null);
+
+  // Response from POST /payments/khqr/generate (drives the QR modal)
+  const [khqrPayment, setKhqrPayment] = useState(null);
 
   /* =======================================================
      ROOM TYPE ID
@@ -299,8 +308,31 @@ export default function BookingPage() {
   };
 
   /* =======================================================
-     SUBMIT RESERVATION
+     SUBMIT RESERVATION + KHQR
   ======================================================= */
+
+  // Amount is based on the server's total so it matches the invoice.
+  const getAmountToPay = (serverTotal) =>
+    Number(
+      (bookingData.payment_option === "deposit"
+        ? serverTotal * 0.5
+        : serverTotal
+      ).toFixed(2),
+    );
+
+  const finishBooking = (reservation, paid) => {
+    const serverTotal = Number(reservation.total_amount ?? total);
+    const paidNow = paid ? getAmountToPay(serverTotal) : 0;
+
+    setBookingResult({
+      ...reservation,
+      payment_method: bookingData.payment_method,
+      paid_amount: paidNow,
+      remaining_balance: Math.max(0, serverTotal - paidNow),
+    });
+
+    setStep(5);
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -311,72 +343,122 @@ export default function BookingPage() {
       setIsSubmitting(true);
       setError(null);
 
-      /*
-       * IMPORTANT:
-       * Keep this payload exactly compatible
-       * with the working backend.
-       */
+      /* 1. Create the reservation once. Reuse it on retry. */
+      let reservation = createdReservation;
 
-      const payload = {
-        guest_id: bookingData.guest_id ?? null,
+      if (!reservation) {
+        /*
+         * IMPORTANT:
+         * Keep this payload exactly compatible
+         * with the working backend.
+         */
+        const payload = {
+          guest_id: bookingData.guest_id ?? null,
 
-        guest_details: {
-          first_name: bookingData.guest_details.first_name,
+          guest_details: {
+            first_name: bookingData.guest_details.first_name,
 
-          last_name: bookingData.guest_details.last_name,
+            last_name: bookingData.guest_details.last_name,
 
-          email: bookingData.guest_details.email,
+            email: bookingData.guest_details.email,
 
-          phone: bookingData.guest_details.phone,
+            phone: bookingData.guest_details.phone,
 
-          id_type: bookingData.guest_details.id_type,
+            id_type: bookingData.guest_details.id_type,
 
-          id_number: bookingData.guest_details.id_number,
+            id_number: bookingData.guest_details.id_number,
 
-          nationality: bookingData.guest_details.nationality,
-        },
+            nationality: bookingData.guest_details.nationality,
+          },
 
-        check_in_date: bookingData.check_in_date,
+          check_in_date: bookingData.check_in_date,
 
-        check_out_date: bookingData.check_out_date,
+          check_out_date: bookingData.check_out_date,
 
-        adults: Number(bookingData.adults),
+          adults: Number(bookingData.adults),
 
-        children: Number(bookingData.children ?? 0),
+          children: Number(bookingData.children ?? 0),
 
-        rooms: bookingData.rooms,
+          rooms: bookingData.rooms,
 
-        tax: Number(bookingData.tax ?? 0),
+          tax: Number(bookingData.tax ?? 0),
 
-        discount: Number(bookingData.discount ?? 0),
+          discount: Number(bookingData.discount ?? 0),
 
-        payment_option: bookingData.payment_option,
+          payment_option: bookingData.payment_option,
 
-        payment_method: bookingData.payment_method,
-      };
+          payment_method: bookingData.payment_method,
+        };
 
-      console.log("Creating reservation:", payload);
+        console.log("Creating reservation:", payload);
 
-      const response = await createReservation(payload);
+        const response = await createReservation(payload);
 
-      console.log("Reservation response:", response);
+        console.log("Reservation response:", response);
 
-      /*
-       * Only after API success:
-       * save result + show confirmation.
-       */
-      setBookingResult(response?.data ?? null);
+        reservation = response?.data ?? null;
 
-      setStep(5);
+        if (!reservation) {
+          throw new Error(
+            "Reservation was created but no details were returned.",
+          );
+        }
+
+        setCreatedReservation(reservation);
+      }
+
+      /* 2a. Bakong KHQR: generate the QR and show it to the guest */
+      if (bookingData.payment_method === "bakong_khqr") {
+        const reservationId = reservation.reservation_id ?? reservation.id;
+        const invoiceId = reservation.invoice_id ?? reservation.invoice?.id;
+
+        if (!reservationId || !invoiceId) {
+          throw new Error(
+            "Reservation response is missing reservation_id or invoice_id.",
+          );
+        }
+
+        const qr = await generateKhqr({
+          reservationId,
+          invoiceId,
+          amount: getAmountToPay(Number(reservation.total_amount ?? total)),
+          currency: "USD",
+        });
+
+        if (!qr?.payment_id || !qr?.qr_code) {
+          throw new Error("Invalid KHQR response from the server.");
+        }
+
+        setKhqrPayment(qr);
+
+        return;
+      }
+
+      /* 2b. Pay at hotel: nothing to charge online */
+      finishBooking(reservation, false);
     } catch (err) {
-      console.error("Reservation failed:", err);
+      console.error("Booking failed:", err);
 
       setError(
-        err?.message || "Unable to create reservation. Please try again.",
+        err?.message || "Unable to complete your booking. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleKhqrPaid = () => {
+    setKhqrPayment(null);
+
+    finishBooking(createdReservation, true);
+  };
+
+  const handleKhqrExpired = () => {
+    setKhqrPayment(null);
+
+    setError(
+      "The QR code expired. Select Pay with KHQR to generate a new one.",
+    );
   };
 
   /* =======================================================
@@ -429,21 +511,7 @@ export default function BookingPage() {
           <button
             type="button"
             onClick={() => navigate("/suites")}
-            className="
-              mt-7
-              inline-flex
-              items-center
-              gap-2
-              rounded-full
-              bg-slate-900
-              px-7
-              py-3.5
-              text-sm
-              font-semibold
-              text-white
-              transition
-              hover:bg-amber-600
-            "
+            className="mt-7 inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-amber-600"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Suites
@@ -488,16 +556,7 @@ export default function BookingPage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="
-              inline-flex
-              items-center
-              gap-2
-              text-sm
-              font-medium
-              text-slate-500
-              transition
-              hover:text-amber-600
-            "
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-amber-600"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -575,8 +634,6 @@ export default function BookingPage() {
         ================================================= */}
 
         <div className="w-full">
-          {/* MAIN CARD */}
-
           <div>
             {/* =================================================
                 STEP 1 — GUEST
@@ -890,24 +947,12 @@ export default function BookingPage() {
                                 ],
                               })
                             }
-                            className={`
-                              group
-                              relative
-                              overflow-hidden
-                              rounded-3xl
-                              border
-                              p-5
-                              text-left
-                              transition-all
-                              duration-200
-                              ${
-                                selected
-                                  ? "border-amber-500 bg-amber-50 shadow-md ring-2 ring-amber-100"
-                                  : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md"
-                              }
-                            `}
+                            className={`group relative overflow-hidden rounded-3xl border p-5 text-left transition-all duration-200 ${
+                              selected
+                                ? "border-amber-500 bg-amber-50 shadow-md ring-2 ring-amber-100"
+                                : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md"
+                            }`}
                           >
-                            {/* selected */}
                             {selected && (
                               <div className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
                                 <Check className="h-4 w-4" />
@@ -1021,43 +1066,18 @@ export default function BookingPage() {
                         Select your preferred payment method.
                       </p>
 
-                      <div className="relative mt-4">
-                        <select
-                          value={bookingData.payment_method}
-                          onChange={(e) =>
-                            setBookingField("payment_method", e.target.value)
+                      <div className="mt-4 grid gap-4 sm:grid-cols-1">
+                        <PaymentOption
+                          selected={
+                            bookingData.payment_method === "bakong_khqr"
                           }
-                          className="
-                            w-full
-                            appearance-none
-                            rounded-2xl
-                            border
-                            border-slate-200
-                            bg-slate-50
-                            px-5
-                            py-4
-                            pr-12
-                            text-sm
-                            font-medium
-                            text-slate-800
-                            outline-none
-                            transition
-                            focus:border-amber-500
-                            focus:bg-white
-                            focus:ring-4
-                            focus:ring-amber-500/10
-                          "
-                        >
-                          <option value="bakong_khqr">Bakong / KHQR</option>
-
-                          <option value="credit_card">Credit Card</option>
-
-                          <option value="stripe">Stripe</option>
-                        </select>
-
-                        <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
-                          <ArrowRight className="h-4 w-4 rotate-90" />
-                        </div>
+                          title="Bakong KHQR"
+                          description="Scan with any Bakong-supported banking app"
+                          icon={WalletCards}
+                          onClick={() =>
+                            setBookingField("payment_method", "bakong_khqr")
+                          }
+                        />
                       </div>
                     </div>
                   </div>
@@ -1169,7 +1189,9 @@ export default function BookingPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-semibold text-slate-800">
-                              Pay Now
+                              {bookingData.payment_method === "cash"
+                                ? "Due at hotel"
+                                : "Pay Now"}
                             </p>
 
                             <p className="mt-1 text-xs text-slate-500">
@@ -1208,27 +1230,8 @@ export default function BookingPage() {
               <button
                 type="button"
                 onClick={step === 1 ? () => navigate(-1) : previousStep}
-                disabled={isSubmitting}
-                className="
-                  inline-flex
-                  items-center
-                  gap-2
-                  rounded-full
-                  border
-                  border-slate-200
-                  bg-white
-                  px-6
-                  py-3.5
-                  text-sm
-                  font-semibold
-                  text-slate-600
-                  shadow-sm
-                  transition
-                  hover:border-slate-300
-                  hover:bg-slate-50
-                  disabled:cursor-not-allowed
-                  disabled:opacity-50
-                "
+                disabled={isSubmitting || Boolean(createdReservation)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ArrowLeft className="h-4 w-4" />
 
@@ -1239,25 +1242,7 @@ export default function BookingPage() {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="
-                    inline-flex
-                    items-center
-                    gap-2
-                    rounded-full
-                    bg-slate-900
-                    px-7
-                    py-3.5
-                    text-sm
-                    font-bold
-                    uppercase
-                    tracking-wide
-                    text-white
-                    shadow-sm
-                    transition
-                    hover:-translate-y-0.5
-                    hover:bg-amber-600
-                    hover:shadow-md
-                  "
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md"
                 >
                   Continue
                   <ArrowRight className="h-4 w-4" />
@@ -1271,28 +1256,7 @@ export default function BookingPage() {
                     nights <= 0 ||
                     bookingData.rooms.length === 0
                   }
-                  className="
-                    inline-flex
-                    items-center
-                    justify-center
-                    gap-2
-                    rounded-full
-                    bg-amber-600
-                    px-8
-                    py-3.5
-                    text-sm
-                    font-bold
-                    uppercase
-                    tracking-wide
-                    text-white
-                    shadow-md
-                    transition
-                    hover:-translate-y-0.5
-                    hover:bg-amber-700
-                    hover:shadow-lg
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
-                  "
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:-translate-y-0.5 hover:bg-amber-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <>
@@ -1302,17 +1266,33 @@ export default function BookingPage() {
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      Confirm & Book
+                      {bookingData.payment_method === "bakong_khqr"
+                        ? "Pay with KHQR"
+                        : "Confirm & Book"}
                     </>
                   )}
                 </button>
               )}
             </div>
           </div>
-
-       
         </div>
       </div>
+
+      {/* =================================================
+          KHQR PAYMENT MODAL
+      ================================================= */}
+
+      {khqrPayment && (
+        <KhqrPaymentModal
+          payment={khqrPayment}
+          amount={getAmountToPay(
+            Number(createdReservation?.total_amount ?? total),
+          )}
+          onPaid={handleKhqrPaid}
+          onExpired={handleKhqrExpired}
+          onClose={() => setKhqrPayment(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1443,6 +1423,12 @@ function SuccessPage({
                   ).toLocaleString()}`}
                 />
               </div>
+
+              {bookingResult.payment_method === "cash" && (
+                <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs text-amber-800">
+                  Please pay the balance in cash at check-in.
+                </p>
+              )}
             </div>
 
             {/* Invoice */}
@@ -1470,22 +1456,7 @@ function SuccessPage({
               resetBooking();
               navigate("/suites");
             }}
-            className="
-              inline-flex
-              items-center
-              justify-center
-              gap-2
-              rounded-full
-              bg-slate-900
-              px-8
-              py-3.5
-              text-sm
-              font-bold
-              text-white
-              shadow-sm
-              transition
-              hover:bg-amber-600
-            "
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-8 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-600"
           >
             Browse More Rooms
             <ArrowRight className="h-4 w-4" />
@@ -1502,26 +1473,10 @@ function SuccessPage({
 
 function BookingSteps({ step }) {
   const steps = [
-    {
-      number: 1,
-      label: "Guest",
-      icon: User,
-    },
-    {
-      number: 2,
-      label: "Stay",
-      icon: CalendarDays,
-    },
-    {
-      number: 3,
-      label: "Room",
-      icon: BedDouble,
-    },
-    {
-      number: 4,
-      label: "Payment",
-      icon: CreditCard,
-    },
+    { number: 1, label: "Guest", icon: User },
+    { number: 2, label: "Stay", icon: CalendarDays },
+    { number: 3, label: "Room", icon: BedDouble },
+    { number: 4, label: "Payment", icon: CreditCard },
   ];
 
   return (
@@ -1536,33 +1491,16 @@ function BookingSteps({ step }) {
           return (
             <div key={item.number} className="relative">
               <div
-                className={`
-                  flex
-                  flex-col
-                  items-center
-                  gap-2
-                  rounded-2xl
-                  px-2
-                  py-3
-                  transition
-                  ${active ? "bg-amber-50 text-amber-700" : "text-slate-400"}
-                `}
+                className={`flex flex-col items-center gap-2 rounded-2xl px-2 py-3 transition ${
+                  active ? "bg-amber-50 text-amber-700" : "text-slate-400"
+                }`}
               >
                 <div
-                  className={`
-                    flex
-                    h-9
-                    w-9
-                    items-center
-                    justify-center
-                    rounded-full
-                    ${
-                      active
-                        ? "bg-amber-500 text-white"
-                        : "bg-slate-100 text-slate-400"
-                    }
-                    ${current ? "ring-4 ring-amber-100" : ""}
-                  `}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                    active
+                      ? "bg-amber-500 text-white"
+                      : "bg-slate-100 text-slate-400"
+                  } ${current ? "ring-4 ring-amber-100" : ""}`}
                 >
                   {step > item.number ? (
                     <Check className="h-4 w-4" />
@@ -1634,24 +1572,7 @@ function Input({
         value={value ?? ""}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="
-          w-full
-          rounded-2xl
-          border
-          border-slate-200
-          bg-slate-50
-          px-4
-          py-3.5
-          text-sm
-          text-slate-800
-          outline-none
-          transition
-          placeholder:text-slate-400
-          focus:border-amber-500
-          focus:bg-white
-          focus:ring-4
-          focus:ring-amber-500/10
-        "
+        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
       />
     </div>
   );
@@ -1672,25 +1593,7 @@ function SelectInput({ label, value, onChange, options }) {
         <select
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
-          className="
-            w-full
-            appearance-none
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            px-4
-            py-3.5
-            pr-10
-            text-sm
-            text-slate-800
-            outline-none
-            transition
-            focus:border-amber-500
-            focus:bg-white
-            focus:ring-4
-            focus:ring-amber-500/10
-          "
+          className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 pr-10 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
         >
           <option value="">Select ID type</option>
 
@@ -1727,24 +1630,7 @@ function DateInput({ label, value, onChange, min }) {
           min={min}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
-          className="
-            w-full
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            py-3.5
-            pl-11
-            pr-4
-            text-sm
-            text-slate-800
-            outline-none
-            transition
-            focus:border-amber-500
-            focus:bg-white
-            focus:ring-4
-            focus:ring-amber-500/10
-          "
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
         />
       </div>
     </div>
@@ -1770,24 +1656,7 @@ function NumberInput({ label, value, min, onChange }) {
           min={min}
           value={value ?? 0}
           onChange={(e) => onChange(e.target.value)}
-          className="
-            w-full
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            py-3.5
-            pl-11
-            pr-4
-            text-sm
-            text-slate-800
-            outline-none
-            transition
-            focus:border-amber-500
-            focus:bg-white
-            focus:ring-4
-            focus:ring-amber-500/10
-          "
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-800 outline-none transition focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
         />
       </div>
     </div>
@@ -1803,21 +1672,11 @@ function PaymentOption({ selected, title, description, icon: Icon, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`
-        relative
-        overflow-hidden
-        rounded-2xl
-        border
-        p-5
-        text-left
-        transition-all
-        duration-200
-        ${
-          selected
-            ? "border-amber-500 bg-amber-50 shadow-sm ring-2 ring-amber-100"
-            : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
-        }
-      `}
+      className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${
+        selected
+          ? "border-amber-500 bg-amber-50 shadow-sm ring-2 ring-amber-100"
+          : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
+      }`}
     >
       {selected && (
         <div className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white">
@@ -1826,17 +1685,9 @@ function PaymentOption({ selected, title, description, icon: Icon, onClick }) {
       )}
 
       <div
-        className={`
-          flex
-          h-11
-          w-11
-          items-center
-          justify-center
-          rounded-xl
-          ${
-            selected ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500"
-          }
-        `}
+        className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+          selected ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500"
+        }`}
       >
         <Icon className="h-5 w-5" />
       </div>
@@ -1907,30 +1758,6 @@ function MiniDetail({ icon: Icon, label, value }) {
 }
 
 /* =========================================================
-   SIDEBAR DETAIL
-========================================================= */
-
-function SidebarDetail({ icon: Icon, label, value }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-amber-600">
-        <Icon className="h-4 w-4" />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          {label}
-        </p>
-
-        <p className="mt-0.5 truncate text-sm font-medium text-slate-700">
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
    CONFIRMATION DETAIL
 ========================================================= */
 
@@ -1961,22 +1788,14 @@ function ConfirmationDetail({ icon: Icon, label, value }) {
 function AmountBox({ label, value, highlight = false }) {
   return (
     <div
-      className={`
-        rounded-2xl
-        p-4
-        ${highlight ? "bg-emerald-50" : "bg-slate-50"}
-      `}
+      className={`rounded-2xl p-4 ${highlight ? "bg-emerald-50" : "bg-slate-50"}`}
     >
       <p className="text-xs text-slate-400">{label}</p>
 
       <p
-        className={`
-          mt-1
-          font-serif
-          text-xl
-          font-bold
-          ${highlight ? "text-emerald-600" : "text-slate-900"}
-        `}
+        className={`mt-1 font-serif text-xl font-bold ${
+          highlight ? "text-emerald-600" : "text-slate-900"
+        }`}
       >
         {value}
       </p>
