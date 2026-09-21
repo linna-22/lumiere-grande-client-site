@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Field from "../components/auth/Field";
 import {
   MailIcon,
@@ -50,6 +50,42 @@ function GithubIcon() {
   );
 }
 
+// Small inline clock icon (no extra dependency needed)
+function ClockIcon({ size = 16, className = "" }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+// 75 -> "1:15", 9 -> "0:09"
+function formatTime(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = String(totalSeconds % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+// Backend message: "Too many login attempts. Please try again in {n} seconds."
+// It has no separate "seconds" field, so we read the number from the message.
+function parseRetrySeconds(err) {
+  const text = err?.data?.message || err?.message || "";
+  const match = String(text).match(/(\d+)\s*seconds?/i);
+  return match ? parseInt(match[1], 10) : 60; // backend decay is 60s
+}
+
 export default function Login({
   onSubmit,
   onNavigateRegister,
@@ -62,18 +98,69 @@ export default function Login({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const update = (key) => (e) =>
+  // --- Rate-limit lockout (backend locks per email + IP) ---
+  const [lockUntil, setLockUntil] = useState(null); // timestamp in ms
+  const [lockedEmail, setLockedEmail] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  // Countdown. Uses the end timestamp so it stays accurate even if the
+  // browser slows timers in a background tab.
+  useEffect(() => {
+    if (!lockUntil) {
+      setSecondsLeft(0);
+      return;
+    }
+
+    function tick() {
+      const remaining = Math.max(
+        0,
+        Math.ceil((lockUntil - Date.now()) / 1000)
+      );
+      setSecondsLeft(remaining);
+
+      if (remaining === 0) {
+        setLockUntil(null);
+        setLockedEmail("");
+      }
+    }
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockUntil]);
+
+  // The backend key is email + IP, so a different email is NOT locked.
+  const isLocked =
+    secondsLeft > 0 && form.email.trim().toLowerCase() === lockedEmail;
+
+  function startLock(err) {
+    const seconds = parseRetrySeconds(err);
+    setLockedEmail(form.email.trim().toLowerCase());
+    setLockUntil(Date.now() + seconds * 1000);
+    setError("");
+  }
+
+  const update = (key) => (e) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
+    setError("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Also blocks submitting with the Enter key while locked
+    if (isLocked) return;
+
     setError("");
     setSubmitting(true);
 
     try {
       await onSubmit?.(form, { remember });
     } catch (err) {
-      if (err.status === 401) {
+      if (err.status === 429) {
+        // Too many attempts: lock the button and start the countdown
+        startLock(err);
+      } else if (err.status === 401) {
         setError("Incorrect email or password.");
       } else if (err.status === 403) {
         setError(err.data?.message || "Your account is suspended.");
@@ -219,8 +306,34 @@ export default function Login({
             </NavLink>
           </div>
 
+          {/* Rate-limit lockout banner */}
+          {isLocked && (
+            <div
+              className="
+                flex items-start gap-3 mb-4
+                rounded-xl
+                border border-amber-200
+                bg-amber-50
+                px-4 py-3
+                text-sm text-amber-800
+              "
+              role="alert"
+            >
+              <ClockIcon size={18} className="mt-0.5 shrink-0 text-red-500" />
+              <div>
+                <p className="font-medium text-red-500">Too many login attempts</p>
+                <p className="text-red-500">
+                  Please try again in{" "}
+                  <span className="font-semibold tabular-nums">
+                    {formatTime(secondsLeft)}
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Error */}
-          {error && (
+          {error && !isLocked && (
             <div
               className="
                 text-sm mb-4
@@ -239,7 +352,7 @@ export default function Login({
           {/* Submit */}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || isLocked}
             className="
               w-full flex items-center justify-center gap-2
               rounded-full py-3.5
@@ -254,8 +367,19 @@ export default function Login({
               disabled:cursor-not-allowed
             "
           >
-            {submitting ? "Signing in…" : "Sign in"}
-            {!submitting && <ArrowIcon />}
+            {submitting ? (
+              "Signing in…"
+            ) : isLocked ? (
+              <>
+                <ClockIcon />
+                Try again in {formatTime(secondsLeft)}
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowIcon />
+              </>
+            )}
           </button>
         </form>
 
