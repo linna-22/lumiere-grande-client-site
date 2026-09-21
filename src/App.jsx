@@ -24,6 +24,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import OAuthCallback from "./pages/OAuthCallback";
 import BookingPage from "./pages/BookingPage";
+import { ErrorProvider } from "./context/ErrorContext";
 
 const SANCTUM_BASE_URL =
   import.meta.env.VITE_SANCTUM_URL || "http://localhost:8000";
@@ -147,31 +148,36 @@ function RegisterRoute() {
 export default function App() {
   return (
     <HashRouter>
-      <AuthProvider>
-        <BookingProvider>
-          <ScrollToTop />
-          <div className="flex min-h-screen flex-col bg-white font-sans text-slate-900">
-            <Chrome>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/suites" element={<SuitesPage />} />
-                <Route path="/suites/:id" element={<RoomDetailPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/login" element={<LoginRoute />} />
-                <Route path="/register" element={<RegisterRoute />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/verify-reset-otp" element={<VerifyResetOtp />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/change-password" element={<ChangePassword />} />
-                <Route path="/oauth/callback" element={<OAuthCallback />} />
-                <Route path="/booking/:id" element={<BookingPage />} />
-              </Routes>
-            </Chrome>
-          </div>
-          <BookingModal />
-        </BookingProvider>
-      </AuthProvider>
+      <ErrorProvider>
+        <AuthProvider>
+          <BookingProvider>
+            <ScrollToTop />
+            <div className="flex min-h-screen flex-col bg-white font-sans text-slate-900">
+              <Chrome>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/suites" element={<SuitesPage />} />
+                  <Route path="/suites/:id" element={<RoomDetailPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/login" element={<LoginRoute />} />
+                  <Route path="/register" element={<RegisterRoute />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route
+                    path="/verify-reset-otp"
+                    element={<VerifyResetOtp />}
+                  />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/change-password" element={<ChangePassword />} />
+                  <Route path="/oauth/callback" element={<OAuthCallback />} />
+                  <Route path="/booking/:id" element={<BookingPage />} />
+                </Routes>
+              </Chrome>
+            </div>
+            <BookingModal />
+          </BookingProvider>
+        </AuthProvider>
+      </ErrorProvider>
     </HashRouter>
   );
 }

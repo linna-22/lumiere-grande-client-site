@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,6 +19,7 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 
 import { useBooking } from "../context/BookingContext";
+import { useError } from "../context/ErrorContext";
 import { fetchAllRooms, fetchRoomTypes } from "../api/rooms";
 import { createReservation } from "../api/reservations";
 import { generateKhqr } from "../api/payments";
@@ -46,6 +47,8 @@ export default function BookingPage() {
   const navigate = useNavigate();
   const { id } = useParams();
 
+  const { showError } = useError();
+
   const {
     bookingData,
     updateBooking,
@@ -55,8 +58,6 @@ export default function BookingPage() {
     setBookingResult,
     isSubmitting,
     setIsSubmitting,
-    error,
-    setError,
     resetBooking,
   } = useBooking();
 
@@ -71,6 +72,10 @@ export default function BookingPage() {
 
   // Response from POST /payments/khqr/generate (drives the QR modal)
   const [khqrPayment, setKhqrPayment] = useState(null);
+
+  // Always points at the latest handleSubmit, so the modal's "Try again"
+  // button never runs a stale copy (which could create a second reservation).
+  const submitRef = useRef(null);
 
   /* =======================================================
      ROOM TYPE ID
@@ -88,7 +93,6 @@ export default function BookingPage() {
     async function loadRooms() {
       try {
         setLoadingRooms(true);
-        setError(null);
 
         const [types, roomsData] = await Promise.all([
           fetchRoomTypes(),
@@ -101,9 +105,7 @@ export default function BookingPage() {
         setRooms(roomsData?.rooms ?? []);
       } catch (err) {
         if (!ignore) {
-          console.error("Failed to load booking rooms:", err);
-
-          setError(err?.message || "Unable to load room information.");
+          showError(err, { title: "Unable to load rooms" });
         }
       } finally {
         if (!ignore) {
@@ -227,7 +229,11 @@ export default function BookingPage() {
   ======================================================= */
 
   const validateStep = () => {
-    setError(null);
+    const invalid = (message, title = "Please check your details") => {
+      showError(message, { title });
+
+      return false;
+    };
 
     /* Guest */
     if (step === 1) {
@@ -239,48 +245,48 @@ export default function BookingPage() {
         !guest.email?.trim() ||
         !guest.phone?.trim()
       ) {
-        setError("Please complete all required guest information.");
-
-        return false;
+        return invalid("Please complete all required guest information.");
       }
     }
 
     /* Stay */
     if (step === 2) {
       if (nights <= 0) {
-        setError("Please select a valid check-in and check-out date.");
-
-        return false;
+        return invalid(
+          "Please select a valid check-in and check-out date.",
+          "Check your dates",
+        );
       }
 
       if (Number(bookingData.adults) < 1) {
-        setError("At least one adult is required.");
-
-        return false;
+        return invalid(
+          "At least one adult is required.",
+          "Check your guests",
+        );
       }
     }
 
     /* Room */
     if (step === 3) {
       if (!bookingData.rooms || bookingData.rooms.length === 0) {
-        setError("Please select a room.");
-
-        return false;
+        return invalid("Please select a room.", "Choose a room");
       }
     }
 
     /* Payment */
     if (step === 4) {
       if (!bookingData.payment_option) {
-        setError("Please select a payment option.");
-
-        return false;
+        return invalid(
+          "Please select a payment option.",
+          "Choose a payment option",
+        );
       }
 
       if (!bookingData.payment_method) {
-        setError("Please select a payment method.");
-
-        return false;
+        return invalid(
+          "Please select a payment method.",
+          "Choose a payment method",
+        );
       }
     }
 
@@ -302,8 +308,6 @@ export default function BookingPage() {
   ======================================================= */
 
   const previousStep = () => {
-    setError(null);
-
     setStep((current) => Math.max(1, current - 1));
   };
 
@@ -341,7 +345,6 @@ export default function BookingPage() {
 
     try {
       setIsSubmitting(true);
-      setError(null);
 
       /* 1. Create the reservation once. Reuse it on retry. */
       let reservation = createdReservation;
@@ -399,8 +402,10 @@ export default function BookingPage() {
         reservation = response?.data ?? null;
 
         if (!reservation) {
+          console.error("Reservation response had no data:", response);
+
           throw new Error(
-            "Reservation was created but no details were returned.",
+            "We couldn't load your reservation details. Please try again.",
           );
         }
 
@@ -413,8 +418,13 @@ export default function BookingPage() {
         const invoiceId = reservation.invoice_id ?? reservation.invoice?.id;
 
         if (!reservationId || !invoiceId) {
+          console.error(
+            "Reservation response is missing reservation_id or invoice_id:",
+            reservation,
+          );
+
           throw new Error(
-            "Reservation response is missing reservation_id or invoice_id.",
+            "We couldn't start your payment. Please try again.",
           );
         }
 
@@ -426,7 +436,11 @@ export default function BookingPage() {
         });
 
         if (!qr?.payment_id || !qr?.qr_code) {
-          throw new Error("Invalid KHQR response from the server.");
+          console.error("Invalid KHQR response:", qr);
+
+          throw new Error(
+            "We couldn't generate your payment QR code. Please try again.",
+          );
         }
 
         setKhqrPayment(qr);
@@ -437,15 +451,18 @@ export default function BookingPage() {
       /* 2b. Pay at hotel: nothing to charge online */
       finishBooking(reservation, false);
     } catch (err) {
-      console.error("Booking failed:", err);
-
-      setError(
-        err?.message || "Unable to complete your booking. Please try again.",
-      );
+      // showError logs the raw error and shows a friendly message
+      showError(err, {
+        title: "Unable to complete your booking",
+        actionLabel: "Try again",
+        onAction: () => submitRef.current?.(),
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  submitRef.current = handleSubmit;
 
   const handleKhqrPaid = () => {
     setKhqrPayment(null);
@@ -456,9 +473,11 @@ export default function BookingPage() {
   const handleKhqrExpired = () => {
     setKhqrPayment(null);
 
-    setError(
-      "The QR code expired. Select Pay with KHQR to generate a new one.",
-    );
+    showError("The QR code has expired. Generate a new one to continue.", {
+      title: "QR code expired",
+      actionLabel: "Generate new QR",
+      onAction: () => submitRef.current?.(),
+    });
   };
 
   /* =======================================================
@@ -606,28 +625,6 @@ export default function BookingPage() {
         ================================================= */}
 
         <BookingSteps step={step} />
-
-        {/* =================================================
-            ERROR
-        ================================================= */}
-
-        {error && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600 shadow-sm">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 font-bold">
-              !
-            </div>
-
-            <div>
-              <p className="font-semibold">Unable to continue</p>
-
-              <p className="mt-0.5">
-                {typeof error === "string"
-                  ? error
-                  : error?.message || "Something went wrong."}
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* =================================================
             CONTENT
