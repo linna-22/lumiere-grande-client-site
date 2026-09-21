@@ -78,7 +78,7 @@ export default function Profile() {
     try {
       await updateProfile(form);
       showSuccessToast("Profile updated successfully!");
-      navigate("/");
+      navigate("/profile");
     } catch (err) {
       if (err.status === 422 && err.data?.errors) {
         const firstError = Object.values(err.data.errors)[0]?.[0];
