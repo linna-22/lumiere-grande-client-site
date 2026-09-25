@@ -8,7 +8,7 @@ import {
 const FALLBACK_IMAGE =
   "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=1200";
 
-export function useRoomDetail(id) {
+export function useRoomDetail(roomTypeId, roomId = null) {
   const [state, setState] = useState({
     room: null,
     isLoading: true,
@@ -16,12 +16,8 @@ export function useRoomDetail(id) {
   });
 
   useEffect(() => {
-    if (!id) {
-      setState({
-        room: null,
-        isLoading: false,
-        error: null,
-      });
+    if (!roomTypeId) {
+      setState({ room: null, isLoading: false, error: null });
       return;
     }
 
@@ -29,11 +25,7 @@ export function useRoomDetail(id) {
 
     async function loadRoom() {
       try {
-        setState({
-          room: null,
-          isLoading: true,
-          error: null,
-        });
+        setState({ room: null, isLoading: true, error: null });
 
         const [roomTypesResponse, roomsResponse, facilitiesResponse] =
           await Promise.all([
@@ -42,197 +34,91 @@ export function useRoomDetail(id) {
             fetchFacilities().catch(() => []),
           ]);
 
-        console.log(
-          "Room Detail - roomTypes response:",
-          roomTypesResponse
-        );
-
-        console.log(
-          "Room Detail - rooms response:",
-          roomsResponse
-        );
-
-        console.log(
-          "Room Detail - facilities response:",
-          facilitiesResponse
-        );
-
-        // ============================================
-        // Normalize API responses
-        // ============================================
-
         const roomTypes = Array.isArray(roomTypesResponse)
           ? roomTypesResponse
           : roomTypesResponse?.data ?? [];
 
         const rooms = Array.isArray(roomsResponse)
           ? roomsResponse
-          : roomsResponse?.data ?? [];
+          : roomsResponse?.rooms ?? roomsResponse?.data ?? [];
 
         const facilities = Array.isArray(facilitiesResponse)
           ? facilitiesResponse
           : facilitiesResponse?.data ?? [];
 
-        console.log(
-          "Room Detail - normalized roomTypes:",
-          roomTypes
-        );
-
-        console.log(
-          "Room Detail - normalized rooms:",
-          rooms
-        );
-
-        console.log(
-          "Room Detail - normalized facilities:",
-          facilities
-        );
-
-        // ============================================
-        // Find room type by URL ID
-        // ============================================
-
         const type = roomTypes.find(
-          (t) => String(t.id) === String(id)
+          (item) => String(item.id) === String(roomTypeId),
         );
 
         if (!type) {
-          throw new Error(
-            `Room type ${id} was not found.`
-          );
+          throw new Error(`Room type ${roomTypeId} was not found.`);
         }
 
-        // ============================================
-        // Find physical rooms belonging to this type
-        // ============================================
-
         const matchingRooms = rooms.filter(
-          (r) =>
-            String(r.room_type_id) ===
-            String(type.id)
+          (item) => String(item.room_type_id) === String(type.id),
         );
 
-        console.log(
-          "Room Detail - matching rooms:",
-          matchingRooms
-        );
+        // If a physical room was supplied in the URL, use ONLY that room.
+        // This prevents the booking flow from silently switching to another room.
+        const selectedPhysicalRoom = roomId
+          ? matchingRooms.find(
+              (item) => String(item.id) === String(roomId),
+            )
+          : matchingRooms[0];
 
-        // ============================================
-        // Build gallery from physical rooms
-        // ============================================
+        if (roomId && !selectedPhysicalRoom) {
+          throw new Error(`Room ${roomId} was not found for this room type.`);
+        }
 
         const gallery = [
           ...new Set(
-            matchingRooms
-              .map((r) => r.image_url)
-              .filter(Boolean)
+            matchingRooms.map((item) => item.image_url).filter(Boolean),
           ),
         ];
 
-        if (gallery.length === 0) {
-          gallery.push(FALLBACK_IMAGE);
-        }
-
-        // ============================================
-        // Normalize facilities
-        // ============================================
+        if (gallery.length === 0) gallery.push(FALLBACK_IMAGE);
 
         const facilityById = new Map(
-          facilities.map((f) => [
-            String(f.id),
-            f,
-          ])
+          facilities.map((facility) => [String(facility.id), facility]),
         );
 
-        const normalizedFacilities = (
-          type.facilities ?? []
-        )
+        const normalizedFacilities = (type.facilities ?? [])
           .map((facility) => {
-            // Facility is already an object
-            if (
-              typeof facility === "object" &&
-              facility !== null
-            ) {
+            if (typeof facility === "object" && facility !== null) {
               return facility;
             }
-
-            // Facility is an ID
-            return facilityById.get(
-              String(facility)
-            );
+            return facilityById.get(String(facility));
           })
           .filter(Boolean);
 
-        // ============================================
-        // Build frontend room object
-        // ============================================
-
         const room = {
-          // IMPORTANT:
-          // This is the ROOM TYPE ID because the
-          // detail page is currently based on room type.
-          id: type.id,
-
-          name:
-            type.name ??
-            "Unnamed Room",
-
-          type:
-            type.name ??
-            "Room",
-
-          description:
-            type.description ?? "",
-
-          image:
-            gallery[0],
-
+          // Physical room ID is the identity of this detail page when available.
+          id: selectedPhysicalRoom?.id ?? type.id,
+          roomTypeId: type.id,
+          roomNumber: selectedPhysicalRoom?.room_number ?? null,
+          floor: selectedPhysicalRoom?.floor ?? null,
+          status: selectedPhysicalRoom?.status ?? null,
+          name: type.name ?? "Unnamed Room",
+          type: type.name ?? "Room",
+          description: type.description ?? "",
+          image: selectedPhysicalRoom?.image_url || gallery[0],
           gallery,
-
-          pricePerNight:
-            Number(type.base_price ?? 0),
-
-          capacity:
-            Number(type.capacity ?? 0),
-
-          maxOccupancy:
-            Number(
-              type.max_occupancy ??
-              type.capacity ??
-              0
-            ),
-
-          facilities:
-            normalizedFacilities,
-
-          rooms:
-            matchingRooms,
+          pricePerNight: Number(type.base_price ?? 0),
+          capacity: Number(type.capacity ?? 0),
+          maxOccupancy: Number(type.max_occupancy ?? type.capacity ?? 0),
+          facilities: normalizedFacilities,
+          rooms: matchingRooms,
+          selectedRoom: selectedPhysicalRoom ?? null,
         };
 
-        console.log(
-          "Room Detail - final room:",
-          room
-        );
-
         if (!ignore) {
-          setState({
-            room,
-            isLoading: false,
-            error: null,
-          });
+          setState({ room, isLoading: false, error: null });
         }
       } catch (error) {
-        console.error(
-          "Failed to load room detail:",
-          error
-        );
+        console.error("Failed to load room detail:", error);
 
         if (!ignore) {
-          setState({
-            room: null,
-            isLoading: false,
-            error,
-          });
+          setState({ room: null, isLoading: false, error });
         }
       }
     }
@@ -242,7 +128,7 @@ export function useRoomDetail(id) {
     return () => {
       ignore = true;
     };
-  }, [id]);
+  }, [roomTypeId, roomId]);
 
   return state;
 }

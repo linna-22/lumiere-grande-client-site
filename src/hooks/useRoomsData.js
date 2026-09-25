@@ -27,12 +27,25 @@ export function useRoomsData() {
 
         const facilityById = new Map(facilities.map((f) => [f.id, f]));
 
-        const combined = rooms
+        // Only show physically available rooms on the public website.
+        const availableRooms = rooms.filter(
+          (room) =>
+            String(room.status || "").toLowerCase() === "available"
+        );
+
+        const combined = availableRooms
           .filter((room) => room.room_type)
           .map((room) => {
             const type = room.room_type;
+
             const typeFacilities = (type.facilities ?? [])
-              .map((fid) => facilityById.get(fid))
+              .map((fid) => {
+                if (typeof fid === "object" && fid !== null) {
+                  return fid;
+                }
+
+                return facilityById.get(fid);
+              })
               .filter(Boolean);
 
             return {
@@ -45,17 +58,24 @@ export function useRoomsData() {
               type: type.name,
               description: type.description,
               image: room.image_url || FALLBACK_IMAGE,
-              pricePerNight: type.base_price,
+              pricePerNight: Number(type.base_price ?? 0),
               capacity: type.capacity,
               maxOccupancy: type.max_occupancy,
               facilities: typeFacilities,
+              created_at: room.created_at,
+              featured: room.featured ?? false,
             };
           });
 
         if (ignore) return;
 
-        const prices = combined.map((r) => r.pricePerNight).filter((p) => typeof p === "number");
-        const typeNames = [...new Set(combined.map((r) => r.type))];
+        const prices = combined
+          .map((r) => Number(r.pricePerNight))
+          .filter((p) => Number.isFinite(p));
+
+        const typeNames = [
+          ...new Set(combined.map((r) => r.type)),
+        ];
 
         setState({
           rooms: combined,
@@ -67,7 +87,13 @@ export function useRoomsData() {
           error: null,
         });
       } catch (error) {
-        if (!ignore) setState((prev) => ({ ...prev, isLoading: false, error }));
+        if (!ignore) {
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error,
+          }));
+        }
       }
     })();
 

@@ -1,8 +1,10 @@
-
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import {
+  PublicHotelSettingsProvider,
+} from "./context/PublicHotelSettingsContext";
 
 // Laravel OAuth callback
 // Backend redirects to:
@@ -16,11 +18,17 @@ const path = window.location.pathname;
 if (path === "/auth/callback") {
   const query = window.location.search;
 
-  window.location.replace(`/#/oauth/callback${query}`);
+  window.location.replace(
+    `/#/oauth/callback${query}`
+  );
 }
 
-createRoot(document.getElementById("root")).render(
+createRoot(
+  document.getElementById("root")
+).render(
   <StrictMode>
-    <App />
+    <PublicHotelSettingsProvider>
+      <App />
+    </PublicHotelSettingsProvider>
   </StrictMode>
 );

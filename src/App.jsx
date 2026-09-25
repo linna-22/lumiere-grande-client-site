@@ -24,6 +24,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import OAuthCallback from "./pages/OAuthCallback";
 import BookingPage from "./pages/BookingPage";
+import MyBookings from "./pages/MyBookings";
 import { ErrorProvider } from "./context/ErrorContext";
 
 const SANCTUM_BASE_URL =
@@ -109,6 +110,7 @@ function LoginRoute() {
 function RegisterRoute() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   async function handleSubmit(form) {
     await register({
@@ -157,6 +159,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/suites" element={<SuitesPage />} />
+                  <Route path="/suites/:roomTypeId/:roomId" element={<RoomDetailPage />} />
                   <Route path="/suites/:id" element={<RoomDetailPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/login" element={<LoginRoute />} />
@@ -169,7 +172,9 @@ export default function App() {
                   />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/change-password" element={<ChangePassword />} />
+                  <Route path="/my-bookings" element={<MyBookings />} />
                   <Route path="/oauth/callback" element={<OAuthCallback />} />
+                  <Route path="/booking/:roomTypeId/:roomId" element={<BookingPage />} />
                   <Route path="/booking/:id" element={<BookingPage />} />
                 </Routes>
               </Chrome>

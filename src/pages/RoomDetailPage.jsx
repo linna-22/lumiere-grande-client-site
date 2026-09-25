@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   Link,
   Navigate,
-  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -15,17 +14,17 @@ import { useAuth } from "../context/AuthContext";
 import RoomCard from "../components/RoomCard";
 
 export default function RoomDetailPage() {
-  const { id } = useParams();
+  const { id, roomTypeId, roomId } = useParams();
+  const selectedRoomTypeId = roomTypeId ?? id;
   const navigate = useNavigate();
-  const location = useLocation();
-
   const { user } = useAuth();
 
-  const { room, isLoading, error } = useRoomDetail(id);
+  const { room, isLoading, error } = useRoomDetail(selectedRoomTypeId, roomId);
 
   const { rooms: allRooms = [] } = useRoomsData();
 
-  const [activeImage, setActiveImage] = useState(0);
+  // The room detail page uses one image only.
+  // The selected room itself is already known, so there is no gallery/carousel.
 
   // ==================================================
   // Reset page when room changes
@@ -37,8 +36,7 @@ export default function RoomDetailPage() {
       behavior: "instant",
     });
 
-    setActiveImage(0);
-  }, [id]);
+  }, [selectedRoomTypeId, roomId]);
 
   // ==================================================
   // Loading
@@ -99,14 +97,14 @@ export default function RoomDetailPage() {
     if (!user) {
       navigate("/login", {
         state: {
-          from: `/booking/${room.id}`,
+          from: `/booking/${room.roomTypeId}/${room.id}`,
         },
       });
 
       return;
     }
 
-    navigate(`/booking/${room.id}`);
+    navigate(`/booking/${room.roomTypeId}/${room.id}`);
   };
 
   return (
@@ -126,43 +124,20 @@ export default function RoomDetailPage() {
       </div>
 
       {/* ==================================================
-          Gallery
+          Room Image
       ================================================== */}
 
       <section className="mx-auto max-w-7xl px-6 pt-6 sm:px-8">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
-          {/* Main image */}
-
-          <div className="h-72 overflow-hidden rounded-2xl sm:h-[420px]">
+        <div className="h-72 overflow-hidden rounded-2xl sm:h-[520px]">
+          {room.image ? (
             <img
-              src={room.gallery?.[activeImage]}
+              src={room.image}
               alt={room.name}
               className="h-full w-full object-cover transition duration-500"
             />
-          </div>
-
-          {/* Thumbnails */}
-
-          {room.gallery?.length > 1 && (
-            <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
-              {room.gallery.map((img, index) => (
-                <button
-                  type="button"
-                  key={`${img}-${index}`}
-                  onClick={() => setActiveImage(index)}
-                  className={`h-24 overflow-hidden rounded-xl border-2 transition sm:h-[132px] ${
-                    activeImage === index
-                      ? "border-amber-500"
-                      : "border-transparent"
-                  }`}
-                >
-                  <img
-                    src={img}
-                    alt={`${room.name} ${index + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-              ))}
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+              No room image available
             </div>
           )}
         </div>
@@ -259,6 +234,14 @@ export default function RoomDetailPage() {
 
                 <span className="text-right font-medium text-slate-800">
                   {room.type}
+                </span>
+              </li>
+
+              <li className="flex justify-between gap-4">
+                <span>Room Number</span>
+
+                <span className="font-medium text-slate-800">
+                  {room.roomNumber ? `Room ${room.roomNumber}` : "Selected room"}
                 </span>
               </li>
 

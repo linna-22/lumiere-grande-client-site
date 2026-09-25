@@ -1,10 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Gem, User, LogOut, ChevronDown, KeyRound } from "lucide-react";
+import {
+  NavLink,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import {
+  Menu,
+  X,
+  User,
+  LogOut,
+  ChevronDown,
+  KeyRound,
+  CalendarDays,
+} from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import { useAuth } from "../context/AuthContext";
+import { usePublicHotelSettings } from "../context/PublicHotelSettingsContext";
 import { cn } from "../utils/cn";
-
 
 const navLinks = [
   { to: "/", label: "Home" },
@@ -14,27 +26,70 @@ const navLinks = [
 
 function getInitials(name = "") {
   const parts = name.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return "?";
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+
+  if (parts.length === 0 || !parts[0]) {
+    return "?";
+  }
+
+  if (parts.length === 1) {
+    return parts[0][0].toUpperCase();
+  }
+
+  return (
+    parts[0][0] +
+    parts[parts.length - 1][0]
+  ).toUpperCase();
 }
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] =
+    useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { openBooking } = useBooking();
-  const { user, logout, isAuthenticated, loading } = useAuth();
+
+  const {
+    settings: hotelSettings,
+  } = usePublicHotelSettings();
+
+  const {
+    openBooking,
+  } = useBooking();
+
+  const {
+    user,
+    logout,
+    isAuthenticated,
+    loading,
+  } = useAuth();
+
   const location = useLocation();
   const navigate = useNavigate();
   const profileRef = useRef(null);
 
+  const hotelName =
+    hotelSettings?.hotel_name ||
+    "Lumiere Grande Hotel";
+
+  const hotelLogo =
+    hotelSettings?.hotel_logo_url || "";
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () =>
+      setScrolled(window.scrollY > 20);
+
     onScroll();
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+
+    window.addEventListener(
+      "scroll",
+      onScroll
+    );
+
+    return () =>
+      window.removeEventListener(
+        "scroll",
+        onScroll
+      );
   }, []);
 
   useEffect(() => {
@@ -44,20 +99,36 @@ export default function Navbar() {
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(e.target)
+      ) {
         setProfileMenuOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
   }, []);
 
   async function handleLogout() {
     setLoggingOut(true);
+
     try {
       await logout();
     } catch (err) {
-      console.error("Logout request failed:", err);
+      console.error(
+        "Logout request failed:",
+        err
+      );
     } finally {
       setLoggingOut(false);
       setProfileMenuOpen(false);
@@ -65,31 +136,73 @@ export default function Navbar() {
     }
   }
 
-  const isTransparent = !scrolled && !mobileOpen && location.pathname === "/";
-  const textColor = isTransparent ? "text-white" : "text-slate-900";
-  const mutedColor = isTransparent ? "text-white/90" : "text-slate-700";
+  const isTransparent =
+    !scrolled &&
+    !mobileOpen &&
+    location.pathname === "/";
+
+  const textColor = isTransparent
+    ? "text-white"
+    : "text-slate-900";
+
+  const mutedColor = isTransparent
+    ? "text-white/90"
+    : "text-slate-700";
 
   return (
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-        isTransparent ? "bg-transparent py-5" : "bg-white/95 py-3 shadow-sm backdrop-blur-md"
+        isTransparent
+          ? "bg-transparent py-5"
+          : "bg-white/95 py-3 shadow-sm backdrop-blur-md"
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 sm:px-8">
-        <NavLink to="/" className="flex items-center gap-2">
+        <NavLink
+          to="/"
+          className="flex items-center gap-2 min-w-0"
+        >
+          {/* Hotel logo */}
           <span
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-full border",
+              "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border",
               isTransparent
-                ? "border-white/40 text-white"
-                : "border-amber-600/30 bg-amber-50 text-amber-700"
+                ? "border-white/40 bg-white/5"
+                : "border-amber-600/30 bg-amber-50"
             )}
           >
-            <Gem className="h-5 w-5" />
+            {hotelLogo ? (
+              <img
+                src={hotelLogo}
+                alt={hotelName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span
+                className={cn(
+                  "font-serif text-lg font-semibold",
+                  isTransparent
+                    ? "text-white"
+                    : "text-amber-700"
+                )}
+              >
+                {hotelName
+                  .charAt(0)
+                  .toUpperCase()}
+              </span>
+            )}
           </span>
-          <span className={cn("font-serif text-lg tracking-wide sm:text-xl", textColor)}>
-            Lumiere Grande
+
+          {/* Hotel name */}
+          <span
+            className={cn(
+              "truncate font-serif text-lg tracking-wide sm:text-xl",
+              textColor
+            )}
+            title={hotelName}
+          >
+            {hotelName}
           </span>
         </NavLink>
 
@@ -118,66 +231,99 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-
           {/* Auth section — desktop */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
             {loading ? (
-              <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse" />
+              <div className="h-8 w-8 animate-pulse rounded-full bg-slate-200" />
             ) : isAuthenticated ? (
-              <div className="relative" ref={profileRef}>
+              <div
+                className="relative"
+                ref={profileRef}
+              >
                 <button
-                  onClick={() => setProfileMenuOpen((v) => !v)}
+                  onClick={() =>
+                    setProfileMenuOpen(
+                      (v) => !v
+                    )
+                  }
                   className={cn(
                     "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors",
-                    isTransparent ? "hover:bg-white/10" : "hover:bg-slate-100"
+                    isTransparent
+                      ? "hover:bg-white/10"
+                      : "hover:bg-slate-100"
                   )}
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600 text-xs font-semibold text-white">
                     {getInitials(user?.name)}
                   </span>
-                  <span className={cn("text-sm font-medium", textColor)}>
+
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      textColor
+                    )}
+                  >
                     {user?.name}
                   </span>
+
                   <ChevronDown
                     size={14}
                     className={cn(
                       mutedColor,
                       "transition-transform",
-                      profileMenuOpen ? "rotate-180" : ""
+                      profileMenuOpen
+                        ? "rotate-180"
+                        : ""
                     )}
                   />
                 </button>
 
                 {profileMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-slate-100 bg-white py-1.5 shadow-lg overflow-hidden z-30">
+                  <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-slate-100 bg-white py-1.5 shadow-lg">
                     <button
                       onClick={() => {
                         setProfileMenuOpen(false);
                         navigate("/profile");
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                     >
                       <User size={15} />
                       View Profile
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileMenuOpen(false);
                         navigate("/change-password");
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                     >
                       <KeyRound size={15} />
                       Change Password
                     </button>
-                    <div className="h-px bg-slate-100 my-1" />
+
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        navigate("/my-bookings");
+                      }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <CalendarDays size={15} />
+                      My Bookings
+                    </button>
+
+                    <div className="my-1 h-px bg-slate-100" />
+
                     <button
                       onClick={handleLogout}
                       disabled={loggingOut}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-60"
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-rose-500 transition-colors hover:bg-rose-50 disabled:opacity-60"
                     >
                       <LogOut size={15} />
-                      {loggingOut ? "Logging out..." : "Logout"}
+                      {loggingOut
+                        ? "Logging out..."
+                        : "Logout"}
                     </button>
                   </div>
                 )}
@@ -188,11 +334,14 @@ export default function Navbar() {
                   to="/login"
                   className={cn(
                     "text-sm font-medium uppercase tracking-wide transition-colors",
-                    isTransparent ? "text-white/90 hover:text-amber-300" : "text-slate-700 hover:text-amber-600"
+                    isTransparent
+                      ? "text-white/90 hover:text-amber-300"
+                      : "text-slate-700 hover:text-amber-600"
                   )}
                 >
                   Login
                 </NavLink>
+
                 <NavLink
                   to="/register"
                   className="rounded-full border border-amber-600/40 px-4 py-2 text-sm font-medium uppercase tracking-wide text-amber-600 transition hover:bg-amber-50"
@@ -206,12 +355,20 @@ export default function Navbar() {
           <button
             className={cn(
               "inline-flex h-10 w-10 items-center justify-center rounded-full md:hidden",
-              isTransparent ? "text-white" : "text-slate-800"
+              isTransparent
+                ? "text-white"
+                : "text-slate-800"
             )}
-            onClick={() => setMobileOpen((v) => !v)}
+            onClick={() =>
+              setMobileOpen((v) => !v)
+            }
             aria-label="Toggle menu"
           >
-            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </button>
         </div>
       </div>
@@ -226,14 +383,16 @@ export default function Navbar() {
               className={({ isActive }) =>
                 cn(
                   "block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide",
-                  isActive ? "bg-amber-50 text-amber-600" : "text-slate-700 hover:bg-slate-50"
+                  isActive
+                    ? "bg-amber-50 text-amber-600"
+                    : "text-slate-700 hover:bg-slate-50"
                 )
               }
             >
               {link.label}
             </NavLink>
           ))}
-         
+
           {/* Auth section — mobile */}
           <div className="mt-3 border-t border-slate-100 pt-3">
             {isAuthenticated ? (
@@ -242,26 +401,41 @@ export default function Navbar() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600 text-xs font-semibold text-white">
                     {getInitials(user?.name)}
                   </span>
-                  <span className="text-sm font-medium text-slate-900">{user?.name}</span>
+
+                  <span className="text-sm font-medium text-slate-900">
+                    {user?.name}
+                  </span>
                 </div>
+
                 <NavLink
                   to="/profile"
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-slate-700 hover:bg-slate-50"
                 >
                   View Profile
                 </NavLink>
+
                 <NavLink
                   to="/change-password"
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-slate-700 hover:bg-slate-50"
                 >
                   Change Password
                 </NavLink>
+
+                <NavLink
+                  to="/my-bookings"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-slate-700 hover:bg-slate-50"
+                >
+                  My Bookings
+                </NavLink>
+
                 <button
                   onClick={handleLogout}
                   disabled={loggingOut}
-                  className="w-full text-left rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-rose-500 hover:bg-rose-50 disabled:opacity-60"
+                  className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium uppercase tracking-wide text-rose-500 hover:bg-rose-50 disabled:opacity-60"
                 >
-                  {loggingOut ? "Logging out..." : "Logout"}
+                  {loggingOut
+                    ? "Logging out..."
+                    : "Logout"}
                 </button>
               </>
             ) : (
@@ -272,6 +446,7 @@ export default function Navbar() {
                 >
                   Login
                 </NavLink>
+
                 <NavLink
                   to="/register"
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium uppercase tracking-wide text-amber-600 hover:bg-amber-50"

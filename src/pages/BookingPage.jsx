@@ -45,7 +45,7 @@ function addDaysISO(days) {
 
 export default function BookingPage() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id, roomTypeId: routeRoomTypeId, roomId: routeRoomId } = useParams();
 
   const { showError } = useError();
 
@@ -72,6 +72,7 @@ export default function BookingPage() {
 
   // Response from POST /payments/khqr/generate (drives the QR modal)
   const [khqrPayment, setKhqrPayment] = useState(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Always points at the latest handleSubmit, so the modal's "Try again"
   // button never runs a stale copy (which could create a second reservation).
@@ -81,7 +82,8 @@ export default function BookingPage() {
      ROOM TYPE ID
   ======================================================= */
 
-  const roomTypeId = id;
+  const roomTypeId = routeRoomTypeId ?? id;
+  const selectedRoomId = routeRoomId ?? null;
 
   /* =======================================================
      LOAD ROOMS
@@ -149,18 +151,18 @@ export default function BookingPage() {
   }, [roomTypes, roomTypeId]);
 
   /* =======================================================
-     AVAILABLE ROOMS
+     SELECTED ROOM
   ======================================================= */
 
-  const availableRooms = useMemo(() => {
-    if (!roomTypeId) return [];
+  const selectedRoom = useMemo(() => {
+    if (!selectedRoomId) return null;
 
-    return rooms.filter(
+    return rooms.find(
       (room) =>
-        String(room.room_type_id) === String(roomTypeId) &&
-        room.status === "available",
+        String(room.id) === String(selectedRoomId) &&
+        String(room.room_type_id) === String(roomTypeId),
     );
-  }, [rooms, roomTypeId]);
+  }, [rooms, roomTypeId, selectedRoomId]);
 
   /* =======================================================
      NIGHTLY RATE
@@ -205,24 +207,37 @@ export default function BookingPage() {
   const remainingBalance = total - paidAmount;
 
   /* =======================================================
-     AUTO SELECT FIRST AVAILABLE ROOM
+     LOCK BOOKING TO THE ROOM THE GUEST SELECTED
   ======================================================= */
 
   useEffect(() => {
-    if (availableRooms.length > 0 && bookingData.rooms.length === 0) {
-      const firstRoom = availableRooms[0];
+    if (!selectedRoomId) return;
 
-      updateBooking({
-        rooms: [
-          {
-            room_type_id: Number(roomTypeId),
-            room_id: firstRoom.id,
-            nightly_rate: nightlyRate,
-          },
-        ],
-      });
+    if (selectedRoom && selectedRoom.status === "available") {
+      const alreadySelected =
+        String(bookingData.rooms[0]?.room_id) === String(selectedRoom.id) &&
+        String(bookingData.rooms[0]?.room_type_id) ===
+          String(selectedRoom.room_type_id);
+
+      if (!alreadySelected) {
+        updateBooking({
+          rooms: [
+            {
+              room_type_id: Number(selectedRoom.room_type_id),
+              room_id: selectedRoom.id,
+              nightly_rate: nightlyRate,
+            },
+          ],
+        });
+      }
+
+      return;
     }
-  }, [availableRooms, roomTypeId, bookingData.rooms.length, nightlyRate]);
+
+    if (bookingData.rooms.length > 0) {
+      updateBooking({ rooms: [] });
+    }
+  }, [selectedRoom, selectedRoomId, nightlyRate, bookingData.rooms]);
 
   /* =======================================================
      VALIDATION
@@ -268,8 +283,30 @@ export default function BookingPage() {
 
     /* Room */
     if (step === 3) {
-      if (!bookingData.rooms || bookingData.rooms.length === 0) {
-        return invalid("Please select a room.", "Choose a room");
+      if (!selectedRoomId || !selectedRoom) {
+        return invalid(
+          "The selected room could not be found. Please return to the room details and choose another room.",
+          "Room unavailable",
+        );
+      }
+
+      if (selectedRoom.status !== "available") {
+        return invalid(
+          "This room is no longer available. Please return to the room details and choose another room.",
+          "Room unavailable",
+        );
+      }
+
+      const selectedBookingRoom = bookingData.rooms?.[0];
+
+      if (
+        !selectedBookingRoom ||
+        String(selectedBookingRoom.room_id) !== String(selectedRoom.id)
+      ) {
+        return invalid(
+          "Your selected room is not ready yet. Please wait a moment and try again.",
+          "Room selection",
+        );
       }
     }
 
@@ -467,7 +504,30 @@ export default function BookingPage() {
   const handleKhqrPaid = () => {
     setKhqrPayment(null);
 
-    finishBooking(createdReservation, true);
+    // The KHQR modal only calls this after payment verification succeeds.
+    // Show a success confirmation first, then let the guest open My Bookings.
+    const reservation = createdReservation;
+
+    if (!reservation) {
+      showError(
+        "Payment was verified, but we couldn't load your reservation details. Please check My Bookings.",
+        { title: "Payment Successful" },
+      );
+      navigate("/my-bookings");
+      return;
+    }
+
+    const serverTotal = Number(reservation.total_amount ?? total);
+    const paidNow = getAmountToPay(serverTotal);
+
+    setBookingResult({
+      ...reservation,
+      payment_method: bookingData.payment_method,
+      paid_amount: paidNow,
+      remaining_balance: Math.max(0, serverTotal - paidNow),
+    });
+
+    setPaymentSuccess(true);
   };
 
   const handleKhqrExpired = () => {
@@ -848,7 +908,7 @@ export default function BookingPage() {
             )}
 
             {/* =================================================
-                STEP 3 — ROOM
+                STEP 3 — SELECTED ROOM
             ================================================= */}
 
             {step === 3 && (
@@ -856,143 +916,82 @@ export default function BookingPage() {
                 <SectionHeader
                   icon={BedDouble}
                   eyebrow="Step 3"
-                  title="Choose Your Room"
-                  description="Select an available room for your stay."
+                  title="Your Selected Room"
+                  description="This is the room you selected from the room details page."
                 />
 
                 <div className="p-6 sm:p-8">
-                  {/* Room type */}
-
-                  <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 p-6 ring-1 ring-amber-100">
-                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-600">
-                          Selected Room Type
-                        </p>
-
-                        <h3 className="mt-2 font-serif text-2xl text-slate-900">
-                          {selectedRoomType.name}
-                        </h3>
-
-                        {selectedRoomType.description && (
-                          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                            {selectedRoomType.description}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="shrink-0 rounded-2xl bg-white px-5 py-4 text-center shadow-sm">
-                        <p className="text-xs text-slate-400">Per night</p>
-
-                        <p className="mt-1 font-serif text-2xl font-bold text-slate-900">
-                          ${nightlyRate.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-slate-800">
-                        Available Rooms
-                      </h3>
-
-                      <p className="mt-1 text-xs text-slate-400">
-                        {availableRooms.length} room
-                        {availableRooms.length !== 1 ? "s" : ""} available
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Available
-                    </div>
-                  </div>
-
-                  {availableRooms.length === 0 ? (
-                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-                      <BedDouble className="mx-auto h-10 w-10 text-slate-300" />
-
-                      <p className="mt-4 font-semibold text-slate-700">
-                        No rooms available
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        There are currently no available rooms for this room
-                        type.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {availableRooms.map((room) => {
-                        const selected = bookingData.rooms.some(
-                          (item) => Number(item.room_id) === Number(room.id),
-                        );
-
-                        return (
-                          <button
-                            type="button"
-                            key={room.id}
-                            onClick={() =>
-                              updateBooking({
-                                rooms: [
-                                  {
-                                    room_type_id: Number(room.room_type_id),
-                                    room_id: room.id,
-                                    nightly_rate: nightlyRate,
-                                  },
-                                ],
-                              })
-                            }
-                            className={`group relative overflow-hidden rounded-3xl border p-5 text-left transition-all duration-200 ${
-                              selected
-                                ? "border-amber-500 bg-amber-50 shadow-md ring-2 ring-amber-100"
-                                : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md"
-                            }`}
-                          >
-                            {selected && (
-                              <div className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
-                                <Check className="h-4 w-4" />
-                              </div>
-                            )}
-
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 transition group-hover:bg-amber-100 group-hover:text-amber-600">
-                              <BedDouble className="h-6 w-6" />
-                            </div>
-
-                            <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                              Room
+                  {selectedRoom ? (
+                    <div className="overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
+                      <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+                        <div className="flex items-start gap-4">
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-600 shadow-sm">
+                            <BedDouble className="h-7 w-7" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-600">
+                              Selected Room
                             </p>
-
-                            <h4 className="mt-1 font-serif text-2xl text-slate-900">
-                              {room.room_number}
-                            </h4>
-
-                            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                              <MapPin className="h-3.5 w-3.5" />
-                              Floor {room.floor}
+                            <h3 className="mt-2 font-serif text-3xl text-slate-900">
+                              Room {selectedRoom.room_number}
+                            </h3>
+                            <p className="mt-1 text-base font-medium text-slate-700">
+                              {selectedRoomType.name}
+                            </p>
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
+                              {selectedRoom.floor !== undefined && selectedRoom.floor !== null && (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <MapPin className="h-4 w-4" />
+                                  Floor {selectedRoom.floor}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Selected & Available
+                              </span>
                             </div>
-
-                            {room.description && (
-                              <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
-                                {room.description}
+                            {selectedRoom.description && (
+                              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-500">
+                                {selectedRoom.description}
                               </p>
                             )}
-
-                            <div className="mt-5 border-t border-slate-100 pt-4">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-slate-400">
-                                  Room status
-                                </span>
-
-                                <span className="text-xs font-semibold text-emerald-600">
-                                  Available
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                          </div>
+                        </div>
+                        <div className="shrink-0 rounded-2xl bg-white px-6 py-5 text-center shadow-sm ring-1 ring-slate-100 sm:min-w-40">
+                          <p className="text-xs text-slate-400">Per night</p>
+                          <p className="mt-1 font-serif text-2xl font-bold text-slate-900">
+                            ${nightlyRate.toLocaleString()}
+                          </p>
+                          {nights > 0 && (
+                            <p className="mt-1 text-xs text-slate-400">
+                              ${subtotal.toLocaleString()} for {nights}{" "}
+                              {nights === 1 ? "night" : "nights"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="border-t border-amber-100 bg-white/60 px-6 py-4 sm:px-8">
+                        <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-slate-500">Room selected from Room Details</span>
+                          <span className="font-semibold text-slate-800">Room {selectedRoom.room_number}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-3xl border border-dashed border-rose-200 bg-rose-50 p-10 text-center">
+                      <BedDouble className="mx-auto h-10 w-10 text-rose-300" />
+                      <p className="mt-4 font-semibold text-slate-700">Selected room is unavailable</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        This room may have been booked by another guest. Please return to the suites and choose another room.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/suites")}
+                        className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-600"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Choose Another Room
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1290,6 +1289,106 @@ export default function BookingPage() {
           onClose={() => setKhqrPayment(null)}
         />
       )}
+
+      {paymentSuccess && bookingResult && (
+        <PaymentSuccessModal
+          bookingResult={bookingResult}
+          selectedRoom={selectedRoom}
+          selectedRoomType={selectedRoomType}
+          onContinue={() => {
+            setPaymentSuccess(false);
+            resetBooking();
+            navigate("/my-bookings");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   PAYMENT SUCCESS MODAL
+========================================================= */
+
+function PaymentSuccessModal({
+  bookingResult,
+  selectedRoom,
+  selectedRoomType,
+  onContinue,
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payment-success-title"
+        className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+      >
+        <div className="px-6 pb-7 pt-8 text-center sm:px-8">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 ring-8 ring-emerald-50/60">
+            <CheckCircle2 className="h-11 w-11 text-emerald-500" />
+          </div>
+
+          <p className="mt-6 text-xs font-bold uppercase tracking-[0.25em] text-emerald-600">
+            Payment Successful
+          </p>
+
+          <h2
+            id="payment-success-title"
+            className="mt-2 font-serif text-3xl text-slate-900"
+          >
+            Booking Confirmed!
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500">
+            Your payment has been verified and your reservation is confirmed.
+          </p>
+
+          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-left">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Reservation
+                </p>
+                <p className="mt-1 font-mono text-sm font-bold text-slate-900">
+                  {bookingResult.reservation_code ?? "Confirmed"}
+                </p>
+              </div>
+
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+            </div>
+
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                Room
+              </p>
+              <p className="mt-1 font-semibold text-slate-800">
+                {selectedRoom?.room_number
+                  ? `Room ${selectedRoom.room_number}`
+                  : selectedRoomType?.name ?? "Selected Room"}
+              </p>
+            </div>
+
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Paid</span>
+                <span className="font-bold text-slate-900">
+                  ${Number(bookingResult.paid_amount ?? 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onContinue}
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-600"
+          >
+            View My Booking
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1372,6 +1471,7 @@ function SuccessPage({
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
+                  {selectedRoomId ? `Room ${selectedRoomId} · ` : ""}
                   {nights} night
                   {nights !== 1 ? "s" : ""}
                 </p>

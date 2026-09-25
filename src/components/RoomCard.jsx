@@ -45,7 +45,7 @@ export default function RoomCard({ room }) {
             <span className="text-sm text-slate-500"> / night</span>
           </div>
           <Link
-            to={`/suites/${room.id}`}
+            to={`/suites/${room.roomTypeId ?? room.room_type_id ?? room.typeId ?? room.id}/${room.id}`}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600 transition hover:gap-2.5 hover:text-amber-700"
           >
             View Detail <ArrowRight className="h-4 w-4" />

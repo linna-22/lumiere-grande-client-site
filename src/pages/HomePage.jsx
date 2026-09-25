@@ -11,9 +11,7 @@ import {
   Star,
   Quote,
 } from "lucide-react";
-import { rooms } from "../data/rooms";
 import RoomCard from "../components/RoomCard";
-import { useBooking } from "../context/BookingContext";
 
 const stats = [
   { value: "18", label: "Years of Excellence" },
@@ -83,12 +81,19 @@ const testimonials = [
 ];
 
 export default function HomePage() {
-  const { rooms = [] } = useRoomsData();
-  const latestRooms = rooms
+  const { rooms = [], isLoading, error } = useRoomsData();
+
+  // useRoomsData already returns ONLY available rooms.
+  // Show exactly 3 rooms on the Home page.
+  const featuredRooms = rooms
     .slice()
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+
+      return dateB - dateA;
+    })
     .slice(0, 3);
-  const featuredRooms = rooms.filter((room) => room.featured);
 
   return (
     <div>
@@ -99,32 +104,30 @@ export default function HomePage() {
           alt="Lumiere Grande Hotel exterior at dusk"
           className="absolute inset-0 h-full w-full object-cover"
         />
+
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/30" />
 
         <div className="relative mx-auto w-full max-w-7xl px-6 pt-24 sm:px-8">
           <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-amber-400">
             Welcome to Lumiere Grande
           </p>
+
           <h1 className="max-w-3xl font-serif text-4xl leading-tight text-white sm:text-6xl">
             Where Timeless Elegance Meets Modern Comfort
           </h1>
+
           <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-200 sm:text-lg">
             Indulge in an unforgettable escape with breathtaking views,
             exquisite dining, and personalized service crafted around you.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-4">
-            {/* <button
-              
-              className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-7 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-amber-600/30 transition hover:bg-amber-700"
-            >
-              Book Now
-            </button> */}
             <Link
               to="/suites"
               className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm font-semibold uppercase tracking-wide text-white transition hover:border-white hover:bg-white/10"
             >
-              Explore Suites <ArrowRight className="h-4 w-4" />
+              Explore Suites
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
@@ -134,6 +137,7 @@ export default function HomePage() {
                 <p className="font-serif text-2xl text-amber-400 sm:text-3xl">
                   {stat.value}
                 </p>
+
                 <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                   {stat.label}
                 </p>
@@ -152,12 +156,14 @@ export default function HomePage() {
               alt="Hotel lobby"
               className="h-[420px] w-full rounded-2xl object-cover shadow-xl"
             />
+
             <div className="absolute -bottom-8 -right-6 hidden max-w-[220px] rounded-2xl bg-white p-5 shadow-xl sm:block">
               <div className="flex items-center gap-1 text-amber-400">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Star key={i} className="h-4 w-4 fill-amber-400" />
                 ))}
               </div>
+
               <p className="mt-2 text-sm text-slate-600">
                 "The most memorable stay of our lives."
               </p>
@@ -168,9 +174,11 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600">
               Our Story
             </p>
+
             <h2 className="mt-3 font-serif text-3xl text-slate-900 sm:text-4xl">
               A Legacy of Refined Hospitality
             </h2>
+
             <p className="mt-5 leading-relaxed text-slate-600">
               For nearly two decades, Lumiere Grande Hotel has stood as a beacon
               of sophistication in the heart of the city. Our passion lies in
@@ -178,20 +186,24 @@ export default function HomePage() {
               rooms to world-class dining and wellness — ensuring every guest
               leaves with cherished memories.
             </p>
+
             <p className="mt-4 leading-relaxed text-slate-600">
               Whether you're here for business, romance, or leisure, our
               dedicated team is devoted to crafting a stay that feels distinctly
               yours.
             </p>
+
             <Link
               to="/contact"
               className="mt-7 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-amber-600 transition hover:gap-3 hover:text-amber-700"
             >
-              Get in Touch <ArrowRight className="h-4 w-4" />
+              Get in Touch
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
       </section>
+
       {/* Featured Suites */}
       <section className="mx-auto max-w-7xl px-6 py-20 sm:px-8 lg:py-28">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
@@ -214,11 +226,31 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {latestRooms.map((room) => (
-            <RoomCard key={room.id} room={room} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="mt-12 py-12 text-center text-slate-500">
+            Loading available rooms…
+          </div>
+        ) : error ? (
+          <div className="mt-12 py-12 text-center text-red-500">
+            Couldn't load available rooms right now.
+          </div>
+        ) : featuredRooms.length > 0 ? (
+          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredRooms.map((room) => (
+              <RoomCard key={room.id} room={room} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-12 rounded-2xl border border-dashed border-slate-200 py-16 text-center">
+            <p className="font-serif text-xl text-slate-800">
+              No rooms are currently available.
+            </p>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Please check back later for available accommodations.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* Testimonials */}
@@ -228,6 +260,7 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-400">
               Testimonials
             </p>
+
             <h2 className="mt-3 font-serif text-3xl text-white sm:text-4xl">
               What Our Guests Say
             </h2>
@@ -240,46 +273,32 @@ export default function HomePage() {
                 className="rounded-2xl bg-white/5 p-7 backdrop-blur"
               >
                 <Quote className="h-7 w-7 text-amber-400" />
+
                 <p className="mt-4 text-sm leading-relaxed text-slate-200">
                   {t.quote}
                 </p>
+
                 <div className="mt-6 flex items-center gap-1 text-amber-400">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-amber-400" />
+                    <Star
+                      key={i}
+                      className="h-3.5 w-3.5 fill-amber-400"
+                    />
                   ))}
                 </div>
-                <p className="mt-3 font-serif text-white">{t.name}</p>
-                <p className="text-xs text-slate-400">{t.role}</p>
+
+                <p className="mt-3 font-serif text-white">
+                  {t.name}
+                </p>
+
+                <p className="text-xs text-slate-400">
+                  {t.role}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
-
-      {/* CTA Banner */}
-      {/* <section className="relative overflow-hidden bg-slate-950 py-20">
-        <img
-          src="https://images.pexels.com/photos/15925412/pexels-photo-15925412.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=800&w=1600"
-          alt="Hotel at night"
-          className="absolute inset-0 h-full w-full object-cover opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-slate-950/40" />
-        <div className="relative mx-auto max-w-4xl px-6 text-center sm:px-8">
-          <h2 className="font-serif text-3xl text-white sm:text-4xl">
-            Your Unforgettable Escape Awaits
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-slate-200">
-            Reserve your suite today and experience the pinnacle of modern
-            luxury hospitality.
-          </p>
-          <button
-            onClick={() => openBooking()}
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-amber-600 px-8 py-4 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-amber-600/30 transition hover:bg-amber-700"
-          >
-            Book Your Stay Now
-          </button>
-        </div>
-      </section> */}
     </div>
   );
 }
